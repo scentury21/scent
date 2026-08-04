@@ -30,7 +30,8 @@ export default function SignupPage() {
     setLoading(false);
 
     if (error) {
-      setError(error.message);
+      console.error("Signup error:", error);
+      setError(error.message || "Something went wrong. Check the browser console for details.");
       return;
     }
 
