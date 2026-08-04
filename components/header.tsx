@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useCart } from "@/lib/cart";
 import { getWishlist } from "@/lib/store";
+import { createClient } from "@/lib/supabase/client";
 
 const NAV = [
   { href: "/", label: "Home" },
@@ -13,9 +15,11 @@ const NAV = [
 ];
 
 export default function Header() {
+  const router = useRouter();
   const { count } = useCart();
   const [open, setOpen] = useState(false);
   const [wishCount, setWishCount] = useState(0);
+  const [loggedIn, setLoggedIn] = useState(false);
 
   useEffect(() => {
     const update = () => setWishCount(getWishlist().length);
@@ -27,6 +31,29 @@ export default function Header() {
       window.removeEventListener("scentury:wishlist", update);
     };
   }, []);
+
+  useEffect(() => {
+    const supabase = createClient();
+
+    supabase.auth.getUser().then(({ data }) => {
+      setLoggedIn(!!data.user);
+    });
+
+    const { data: listener } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        setLoggedIn(!!session?.user);
+      }
+    );
+
+    return () => listener.subscription.unsubscribe();
+  }, []);
+
+  async function handleSignOut() {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.push("/");
+    router.refresh();
+  }
 
   return (
     <header className="sticky top-0 z-50 border-b border-white/[0.06] bg-ink-950/70 backdrop-blur-xl">
@@ -53,6 +80,22 @@ export default function Header() {
         </nav>
 
         <div className="flex items-center gap-2">
+          {loggedIn ? (
+            <button
+              onClick={handleSignOut}
+              className="hidden sm:flex items-center rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-xs font-semibold text-zinc-300 transition-all hover:border-gold-400/50 hover:text-gold-200"
+            >
+              Sign out
+            </button>
+          ) : (
+            <Link
+              href="/login"
+              className="hidden sm:flex items-center rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-xs font-semibold text-zinc-300 transition-all hover:border-gold-400/50 hover:text-gold-200"
+            >
+              Sign in
+            </Link>
+          )}
+
           <Link
             href="/wishlist"
             aria-label="Wishlist"
