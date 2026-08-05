@@ -509,7 +509,7 @@ export default function CheckoutPage() {
               </div>
 
               <a
-                href={`https://wa.me/2348123456789?text=${whatsappText}`}
+                href={`https://wa.me/2348028383053?text=${whatsappText}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="btn btn-ghost w-full py-4 text-base"

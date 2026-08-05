@@ -168,7 +168,7 @@ export default function CartPage() {
               Proceed to checkout →
             </Link>
             <a
-              href={`https://wa.me/2348123456789?text=${whatsappText}`}
+              href={`https://wa.me/2348028383053?text=${whatsappText}`}
               target="_blank"
               rel="noopener noreferrer"
               className="btn btn-ghost mt-3 w-full py-3"

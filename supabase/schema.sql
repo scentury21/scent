@@ -205,7 +205,7 @@ create table if not exists public.site_settings (
   updated_at timestamptz not null default now()
 );
 insert into public.site_settings (key, value) values
-  ('whatsapp_number', '2348123456789'),
+  ('whatsapp_number', '2348028383053'),
   ('instagram', 'https://instagram.com/scentury21'),
   ('facebook', 'https://facebook.com/scentury21'),
   ('tiktok', 'https://tiktok.com/@scentury21'),

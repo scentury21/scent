@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 
-const WHATSAPP_NUMBER = "2348123456789"; // placeholder business number
+const WHATSAPP_NUMBER = "2348028383053"; // business number — order notifications go here
 const PHONE = "+234 812 345 6789";
 const EMAIL = "hello@scentury21.com";
 

@@ -37,7 +37,7 @@ function SuccessInner() {
     return <div className="mx-auto max-w-xl px-4 py-24 text-center text-sm text-zinc-500">Loading your order…</div>;
   }
 
-  const waLink = `https://wa.me/2348123456789?text=${encodeURIComponent(
+  const waLink = `https://wa.me/2348028383053?text=${encodeURIComponent(
     `Hello Scentury21, I'm checking on my order ${order.id}.`
   )}`;
 
