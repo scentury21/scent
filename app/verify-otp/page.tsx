@@ -3,6 +3,7 @@
 import { Suspense, useState, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import AuthShell from "@/components/auth-shell";
 
 export default function VerifyOtpPage() {
   return (
@@ -87,9 +88,9 @@ function VerifyOtpForm() {
   }
 
   return (
-    <div className="mx-auto max-w-md px-4 py-20">
-      <div className="glass rounded-2xl p-8 text-center">
-        <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-gold-300 to-gold-600 font-display text-lg font-bold text-ink-950">
+    <AuthShell>
+      <div className="text-center">
+        <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-gold-300 to-gold-600 font-display text-lg font-bold text-ink-950 shadow-[0_6px_20px_-6px_rgba(212,169,74,0.7)]">
           S
         </span>
         <h1 className="mt-5 font-display text-3xl font-semibold text-zinc-50">
@@ -97,7 +98,7 @@ function VerifyOtpForm() {
         </h1>
         <p className="mt-2 text-sm text-zinc-400">
           Enter the 6-digit code we sent to{" "}
-          <span className="text-zinc-200">{email || "your email"}</span>.
+          <span className="font-semibold text-zinc-200">{email || "your email"}</span>.
         </p>
 
         <form onSubmit={handleSubmit} className="mt-8">
@@ -129,17 +130,17 @@ function VerifyOtpForm() {
             disabled={loading}
             className="btn btn-gold mt-6 w-full py-3.5"
           >
-            {loading ? "Verifying..." : "Verify"}
+            {loading ? "Verifying…" : "Verify"}
           </button>
         </form>
 
         <button
           onClick={handleResend}
-          className="mt-5 text-sm text-zinc-400 hover:text-gold-200 transition-colors"
+          className="mt-5 text-sm text-zinc-400 transition-colors hover:text-gold-200"
         >
           Didn&apos;t get a code? Resend
         </button>
       </div>
-    </div>
+    </AuthShell>
   );
 }

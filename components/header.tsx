@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useCart } from "@/lib/cart";
 import { getWishlist } from "@/lib/store";
 import { createClient } from "@/lib/supabase/client";
+import ThemeToggle from "./theme-toggle";
 
 const NAV = [
   { href: "/", label: "Home" },
@@ -80,6 +81,8 @@ export default function Header() {
         </nav>
 
         <div className="flex items-center gap-2">
+          <ThemeToggle />
+
           {loggedIn ? (
             <button
               onClick={handleSignOut}
@@ -152,6 +155,10 @@ export default function Header() {
               {item.label}
             </Link>
           ))}
+          <div className="mt-2 flex items-center justify-between border-t border-white/[0.06] px-4 pb-1 pt-4">
+            <span className="text-xs font-semibold text-zinc-400">Appearance</span>
+            <ThemeToggle compact />
+          </div>
         </nav>
       )}
     </header>

@@ -1,23 +1,47 @@
 @import "tailwindcss";
 
+/* Class-based dark mode: toggling `.dark` on <html> flips `color-scheme`,
+   which re-resolves every light-dark() color below. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --font-sans: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
   --font-display: var(--font-cormorant), ui-serif, Georgia, serif;
 
-  --color-ink-950: #08070f;
-  --color-ink-900: #0d0b18;
-  --color-ink-850: #110e1e;
-  --color-ink-800: #151222;
-  --color-ink-700: #1f1a31;
-  --color-ink-600: #2a2342;
+  /* Light theme (first) / dark theme (second) — single source of truth. */
+  --color-ink-950: light-dark(#faf6ef, #08070f);
+  --color-ink-900: light-dark(#f4efe5, #0d0b18);
+  --color-ink-850: light-dark(#eee7da, #110e1e);
+  --color-ink-800: light-dark(#e6dccb, #151222);
+  --color-ink-700: light-dark(#d9ccb7, #1f1a31);
+  --color-ink-600: light-dark(#c6b89d, #2a2342);
 
-  --color-gold-100: #fbf3dd;
-  --color-gold-200: #f6e3b0;
-  --color-gold-300: #eed391;
-  --color-gold-400: #e2bd66;
-  --color-gold-500: #d4a94a;
-  --color-gold-600: #b98c33;
-  --color-gold-700: #8f6a24;
+  --color-zinc-50: light-dark(#171512, #fafafa);
+  --color-zinc-100: light-dark(#1f1c17, #f4f4f5);
+  --color-zinc-200: light-dark(#2c2820, #e4e4e7);
+  --color-zinc-300: light-dark(#423c31, #d4d4d8);
+  --color-zinc-400: light-dark(#635c4d, #a1a1aa);
+  --color-zinc-500: light-dark(#857c6a, #71717a);
+
+  --color-gold-100: light-dark(#6b4e12, #fbf3dd);
+  --color-gold-200: light-dark(#7d5d17, #f6e3b0);
+  --color-gold-300: light-dark(#96702a, #eed391);
+  --color-gold-400: light-dark(#a87e31, #e2bd66);
+  --color-gold-500: light-dark(#8f6a24, #d4a94a);
+  --color-gold-600: light-dark(#6b4e12, #b98c33);
+  --color-gold-700: light-dark(#53390c, #8f6a24);
+
+  /* In light mode "white" overlays become dark tints so the glass/surface
+     utilities (bg-white/5, border-white/10, …) read correctly. */
+  --color-white: light-dark(#191613, #ffffff);
+}
+
+:root {
+  color-scheme: light;
+}
+
+.dark {
+  color-scheme: dark;
 }
 
 html {
@@ -26,44 +50,51 @@ html {
 
 body {
   background: var(--color-ink-950);
-  color: #d6d3e4;
+  color: var(--color-zinc-300);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   overflow-x: hidden;
+  transition: background-color 0.35s ease, color 0.35s ease;
 }
 
 ::selection {
   background: rgba(226, 189, 102, 0.35);
-  color: #fff7e6;
+  color: var(--color-gold-700);
 }
 
-/* Slim, dark scrollbar */
+/* Slim, theme-aware scrollbar */
 ::-webkit-scrollbar {
   width: 10px;
   height: 10px;
 }
 ::-webkit-scrollbar-track {
-  background: #0d0b18;
+  background: var(--color-ink-900);
 }
 ::-webkit-scrollbar-thumb {
-  background: #2a2342;
+  background: var(--color-ink-600);
   border-radius: 8px;
-  border: 2px solid #0d0b18;
+  border: 2px solid var(--color-ink-900);
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #3b3160;
+  background: var(--color-ink-700);
 }
 
 @layer components {
   .glass {
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.07);
+    background: color-mix(in srgb, var(--color-white) 3%, transparent);
+    border: 1px solid color-mix(in srgb, var(--color-white) 7%, transparent);
     backdrop-filter: blur(14px);
     -webkit-backdrop-filter: blur(14px);
   }
 
   .gold-text {
-    background: linear-gradient(120deg, #f6e3b0 0%, #e2bd66 38%, #b98c33 62%, #f3dfa9 100%);
+    background: linear-gradient(
+      120deg,
+      var(--color-gold-200) 0%,
+      var(--color-gold-400) 38%,
+      var(--color-gold-600) 62%,
+      var(--color-gold-300) 100%
+    );
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
@@ -100,25 +131,29 @@ body {
     @apply w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-zinc-100 placeholder-zinc-500 outline-none transition-colors;
   }
   .input:focus {
-    @apply border-gold-400/60 bg-white/[0.06];
-    box-shadow: 0 0 0 3px rgba(226, 189, 102, 0.12);
+    border-color: color-mix(in srgb, var(--color-gold-400) 60%, transparent);
+    background-color: color-mix(in srgb, var(--color-white) 6%, transparent);
+    box-shadow: 0 0 0 3px rgba(226, 189, 102, 0.18);
   }
   .input-label {
     @apply mb-1.5 block text-[11px] font-bold uppercase tracking-[0.14em] text-zinc-400;
   }
   select.input option {
-    background: #151222;
-    color: #e4e4e7;
+    background: var(--color-ink-800);
+    color: var(--color-zinc-200);
   }
 
   .chip {
     @apply inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-xs font-semibold text-zinc-300 transition-all duration-300 cursor-pointer;
   }
   .chip:hover {
-    @apply border-gold-400/50 text-gold-200;
+    border-color: color-mix(in srgb, var(--color-gold-400) 50%, transparent);
+    color: var(--color-gold-200);
   }
   .chip-active {
-    @apply border-gold-400/70 bg-gold-400/10 text-gold-200;
+    border-color: color-mix(in srgb, var(--color-gold-400) 70%, transparent);
+    background-color: color-mix(in srgb, var(--color-gold-400) 10%, transparent);
+    color: var(--color-gold-200);
   }
 
   .card-hover {
@@ -131,7 +166,7 @@ body {
 
   .divider-fade {
     height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(226, 189, 102, 0.35), transparent);
+    background: linear-gradient(90deg, transparent, rgba(212, 169, 74, 0.45), transparent);
   }
 }
 

@@ -43,8 +43,20 @@ export default function RootLayout({
   return (
     <html
       lang="en"
+      suppressHydrationWarning
       className={`${cormorant.variable} ${manrope.variable} h-full antialiased`}
     >
+      <head>
+        {/*
+          Apply the saved/system theme before first paint to avoid a flash of
+          the wrong theme. Kept tiny and dependency-free.
+        */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var s=localStorage.getItem("scentury-theme");var d=s? s==="dark" : window.matchMedia("(prefers-color-scheme: dark)").matches;var r=document.documentElement;r.classList.toggle("dark",d);var m=document.querySelector("meta[name=theme-color]");var c=d?"#08070f":"#faf6ef";if(m){m.setAttribute("content",c);}else{m=document.createElement("meta");m.setAttribute("name","theme-color");m.setAttribute("content",c);document.head.appendChild(m);}}catch(e){}})();`,
+          }}
+        />
+      </head>
       <body className="min-h-full flex flex-col">
         <CartProvider>
           <ChromaticWaves
