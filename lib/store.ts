@@ -32,24 +32,6 @@ export function uid(prefix = "SC"): string {
 }
 
 /* ------------------------------------------------------------------ */
-/* Profile                                                             */
-/* ------------------------------------------------------------------ */
-
-const PROFILE_KEY = "scentury21_profile";
-
-export type Profile = { name: string; email: string; phone: string };
-
-const DEFAULT_PROFILE: Profile = { name: "", email: "", phone: "" };
-
-export function getProfile(): Profile {
-  return read<Profile>(PROFILE_KEY, DEFAULT_PROFILE);
-}
-
-export function saveProfile(profile: Profile) {
-  write(PROFILE_KEY, profile);
-}
-
-/* ------------------------------------------------------------------ */
 /* Orders                                                              */
 /* ------------------------------------------------------------------ */
 

@@ -135,8 +135,6 @@ export default function Footer() {
         <div className="mt-12 flex flex-col items-center justify-between gap-3 border-t border-white/[0.06] pt-6 text-xs text-zinc-500 sm:flex-row">
           <p>© {new Date().getFullYear()} Scentury21. The art of scent, perfected.</p>
           <p className="flex items-center gap-2">
-            <Link href="/admin" className="transition-colors hover:text-gold-300">Admin</Link>
-            <span>·</span>
             <span>Free shipping over ₦250,000</span>
           </p>
         </div>
