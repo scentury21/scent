@@ -1,29 +1,72 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { getOrders, getCustomers, getProducts } from "@/lib/store";
+import { createClient } from "@/lib/supabase/client";
 import { formatNGN } from "@/lib/currency";
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
+const STATUS_STYLES: Record<string, string> = {
+  pending: "border-amber-400/30 bg-amber-400/10 text-amber-300",
+  processing: "border-cyan-400/30 bg-cyan-400/10 text-cyan-300",
+  shipped: "border-blue-400/30 bg-blue-400/10 text-blue-300",
+  delivered: "border-emerald-400/30 bg-emerald-400/10 text-emerald-300",
+  cancelled: "border-red-400/30 bg-red-400/10 text-red-300",
+};
+
+type OrderRow = {
+  id: string;
+  order_number: string;
+  customer_name: string;
+  customer_email: string;
+  status: string;
+  payment_status: string;
+  total_kobo: number;
+  delivery_country: string;
+  created_at: string;
+};
+
+type ItemRow = { order_id: string; name: string; price_kobo: number; qty: number };
+
 export default function AdminDashboard() {
-  const orders = getOrders();
-  const customers = getCustomers();
-  const products = getProducts();
+  const [orders, setOrders] = useState<OrderRow[]>([]);
+  const [items, setItems] = useState<ItemRow[]>([]);
+  const [productCount, setProductCount] = useState(0);
+  const [lowStock, setLowStock] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const supabase = createClient();
+    (async () => {
+      const [o, i, p] = await Promise.all([
+        supabase.from("orders").select("*").order("created_at", { ascending: false }),
+        supabase.from("order_items").select("order_id, name, price_kobo, qty"),
+        supabase.from("products").select("id, stock"),
+      ]);
+      if (o.error || i.error || p.error) setError((o.error ?? i.error ?? p.error)?.message ?? "Failed to load");
+      setOrders((o.data ?? []) as OrderRow[]);
+      setItems((i.data ?? []) as ItemRow[]);
+      setProductCount((p.data ?? []).length);
+      setLowStock((p.data ?? []).filter((r) => (r.stock as number) <= 8).length);
+    })();
+  }, []);
 
   const stats = useMemo(() => {
-    const revenue = orders.filter((o) => o.payment.status === "paid").reduce((a, o) => a + o.total, 0);
-    const lowStock = products.filter((p) => p.stock <= 8);
-    return { revenue, orderCount: orders.length, customerCount: customers.length, lowStock };
-  }, [orders, customers, products]);
+    const revenue = orders
+      .filter((o) => o.payment_status === "paid")
+      .reduce((a, o) => a + (o.total_kobo ?? 0) / 100, 0);
+    const customers = new Set(orders.map((o) => o.customer_email)).size;
+    return { revenue, orderCount: orders.length, customerCount: customers, lowStock };
+  }, [orders, lowStock]);
 
   const chart = useMemo(() => {
     const buckets = new Array(7).fill(0) as number[];
     for (const o of orders) {
-      const d = new Date(o.createdAt);
-      const idx = (d.getDay() + 6) % 7; // Monday-first
-      buckets[idx] += o.total;
+      if (o.payment_status !== "paid") continue;
+      const d = new Date(o.created_at);
+      const idx = (d.getDay() + 6) % 7;
+      buckets[idx] += (o.total_kobo ?? 0) / 100;
     }
     const max = Math.max(...buckets, 1);
     return buckets.map((v, i) => ({ day: DAYS[i], value: v, pct: Math.round((v / max) * 100) }));
@@ -31,28 +74,28 @@ export default function AdminDashboard() {
 
   const topProducts = useMemo(() => {
     const map = new Map<string, { name: string; qty: number; revenue: number }>();
-    for (const o of orders) {
-      for (const i of o.items) {
-        const e = map.get(i.productId) ?? { name: i.name, qty: 0, revenue: 0 };
-        e.qty += i.qty;
-        e.revenue += i.price * i.qty;
-        map.set(i.productId, e);
-      }
+    for (const i of items) {
+      const e = map.get(i.name) ?? { name: i.name, qty: 0, revenue: 0 };
+      e.qty += i.qty;
+      e.revenue += (i.price_kobo / 100) * i.qty;
+      map.set(i.name, e);
     }
     return Array.from(map.values()).sort((a, b) => b.revenue - a.revenue).slice(0, 5);
-  }, [orders]);
-
-  const recent = orders.slice(0, 5);
+  }, [items]);
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="font-display text-3xl font-semibold text-zinc-50">Dashboard</h1>
-          <p className="text-sm text-zinc-500">Store overview — live from demo data (localStorage)</p>
+          <p className="text-sm text-zinc-500">Store overview — live from Supabase</p>
         </div>
         <Link href="/admin/products" className="btn btn-gold px-5 py-2.5 text-xs">+ Add product</Link>
       </div>
+
+      {error && (
+        <div className="rounded-xl border border-red-400/30 bg-red-400/10 px-4 py-3 text-sm text-red-300">{error}</div>
+      )}
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -60,7 +103,7 @@ export default function AdminDashboard() {
           ["Total revenue", formatNGN(stats.revenue), "💰", "from-gold-400/15"],
           ["Orders", String(stats.orderCount), "📦", "from-cyan-400/15"],
           ["Customers", String(stats.customerCount), "👥", "from-fuchsia-400/15"],
-          ["Low stock", String(stats.lowStock.length), "⚠️", "from-amber-400/15"],
+          ["Products", `${productCount} · ${stats.lowStock} low`, "🫙", "from-amber-400/15"],
         ].map(([label, value, icon, grad]) => (
           <div key={label} className={`glass rounded-2xl bg-gradient-to-br ${grad} to-transparent p-5`}>
             <div className="flex items-center justify-between">
@@ -75,7 +118,7 @@ export default function AdminDashboard() {
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Chart */}
         <div className="glass rounded-2xl p-6">
-          <h2 className="font-display text-xl font-semibold text-zinc-100">Sales this week</h2>
+          <h2 className="font-display text-xl font-semibold text-zinc-100">Paid sales this week</h2>
           <div className="mt-6 flex h-40 items-end justify-between gap-2">
             {chart.map((b) => (
               <div key={b.day} className="group flex flex-1 flex-col items-center gap-2">
@@ -96,7 +139,7 @@ export default function AdminDashboard() {
         <div className="glass rounded-2xl p-6">
           <h2 className="font-display text-xl font-semibold text-zinc-100">Top products</h2>
           {topProducts.length === 0 ? (
-            <p className="mt-6 text-sm text-zinc-500">No sales yet — place a demo order from the storefront.</p>
+            <p className="mt-6 text-sm text-zinc-500">No sales yet — orders appear here once customers check out.</p>
           ) : (
             <ul className="mt-4 space-y-3">
               {topProducts.map((t, idx) => (
@@ -122,7 +165,7 @@ export default function AdminDashboard() {
           <h2 className="font-display text-xl font-semibold text-zinc-100">Recent orders</h2>
           <Link href="/admin/orders" className="text-xs font-semibold text-gold-300 hover:text-gold-200">Manage all →</Link>
         </div>
-        {recent.length === 0 ? (
+        {orders.length === 0 ? (
           <p className="mt-4 text-sm text-zinc-500">No orders yet.</p>
         ) : (
           <div className="mt-4 overflow-x-auto">
@@ -137,17 +180,17 @@ export default function AdminDashboard() {
                 </tr>
               </thead>
               <tbody>
-                {recent.map((o) => (
+                {orders.slice(0, 5).map((o) => (
                   <tr key={o.id} className="border-b border-white/[0.04] last:border-0">
-                    <td className="py-3 pr-4 font-mono text-xs text-gold-300">{o.id}</td>
-                    <td className="py-3 pr-4 text-zinc-300">{o.customer.name}</td>
-                    <td className="py-3 pr-4 text-zinc-400">{o.delivery.country}</td>
+                    <td className="py-3 pr-4 font-mono text-xs text-gold-300">{o.order_number}</td>
+                    <td className="py-3 pr-4 text-zinc-300">{o.customer_name}</td>
+                    <td className="py-3 pr-4 text-zinc-400">{o.delivery_country}</td>
                     <td className="py-3 pr-4">
-                      <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] uppercase tracking-wider text-zinc-300">
+                      <span className={`rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-wider ${STATUS_STYLES[o.status] ?? "border-white/10 bg-white/[0.04] text-zinc-300"}`}>
                         {o.status}
                       </span>
                     </td>
-                    <td className="py-3 text-right font-semibold text-zinc-100">{formatNGN(o.total)}</td>
+                    <td className="py-3 text-right font-semibold text-zinc-100">{formatNGN((o.total_kobo ?? 0) / 100)}</td>
                   </tr>
                 ))}
               </tbody>

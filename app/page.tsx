@@ -1,7 +1,7 @@
 import Link from "next/link";
 import ChromaticWaves from "@/components/chromatic-waves";
 import ProductCard from "@/components/product-card";
-import { BEST_SELLERS, NEW_ARRIVALS } from "@/lib/products";
+import { getActiveProducts } from "@/lib/products-server";
 
 const FEATURES = [
   {
@@ -26,7 +26,11 @@ const FEATURES = [
   },
 ];
 
-export default function HomePage() {
+export default async function HomePage() {
+  const products = await getActiveProducts();
+  const BEST_SELLERS = products.filter((p) => p.tag === "Bestseller");
+  const NEW_ARRIVALS = products.filter((p) => p.tag === "New");
+
   return (
     <div className="mx-auto max-w-7xl px-4 sm:px-6">
       {/* ------------------------------ HERO ------------------------------ */}
@@ -77,6 +81,7 @@ export default function HomePage() {
       </section>
 
       {/* --------------------------- BESTSELLERS --------------------------- */}
+      {BEST_SELLERS.length > 0 && (
       <section className="mt-20">
         <div className="flex items-end justify-between">
           <div>
@@ -95,6 +100,7 @@ export default function HomePage() {
           ))}
         </div>
       </section>
+      )}
 
       {/* ------------------------------ STORY ------------------------------ */}
       <section id="house" className="mt-28 scroll-mt-24">
@@ -143,7 +149,7 @@ export default function HomePage() {
                 </span>
                 <div>
                   <div className="text-sm font-semibold text-zinc-200">The Scentury21 atelier</div>
-                  <div className="text-xs text-zinc-500">Founders' note</div>
+                  <div className="text-xs text-zinc-500">Founders&apos; note</div>
                 </div>
               </div>
               <div className="divider-fade my-8" />
@@ -161,6 +167,7 @@ export default function HomePage() {
       </section>
 
       {/* -------------------------- NEW ARRIVALS --------------------------- */}
+      {NEW_ARRIVALS.length > 0 && (
       <section className="mt-28">
         <div className="flex items-end justify-between">
           <div>
@@ -179,6 +186,7 @@ export default function HomePage() {
           ))}
         </div>
       </section>
+      )}
 
       {/* ----------------------------- FEATURES ---------------------------- */}
       <section className="mt-28">

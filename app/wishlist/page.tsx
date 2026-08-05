@@ -1,25 +1,37 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { getWishlist } from "@/lib/store";
-import { getProduct } from "@/lib/products";
-import type { Product } from "@/lib/types";
+import { createClient } from "@/lib/supabase/client";
+import { mapProductRow, type Product, type ProductRow } from "@/lib/products";
 import ProductCard from "@/components/product-card";
 
 export default function WishlistPage() {
-  const [products, setProducts] = useState<Product[]>([]);
+  const [catalog, setCatalog] = useState<Product[]>([]);
+  const [tick, setTick] = useState(0);
 
   useEffect(() => {
-    const ids = getWishlist();
-    setProducts(ids.map(getProduct).filter((p): p is Product => Boolean(p)));
-    const refresh = () => {
-      const next = getWishlist().map(getProduct).filter((p): p is Product => Boolean(p));
-      setProducts(next);
-    };
+    const supabase = createClient();
+    (async () => {
+      const { data } = await supabase
+        .from("products")
+        .select("*")
+        .eq("active", true);
+      setCatalog((data ?? []).map((row) => mapProductRow(row as ProductRow)));
+    })();
+    const refresh = () => setTick((t) => t + 1);
     window.addEventListener("scentury:wishlist", refresh);
     return () => window.removeEventListener("scentury:wishlist", refresh);
   }, []);
+
+  const products = useMemo(() => {
+    void tick; // recompute when the wishlist storage changes
+    const ids = getWishlist();
+    return ids
+      .map((id) => catalog.find((p) => p.id === id))
+      .filter((p): p is Product => Boolean(p));
+  }, [catalog, tick]);
 
   if (products.length === 0) {
     return (

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getProduct, PRODUCTS } from "@/lib/products";
+import { getActiveProducts, getDbProduct } from "@/lib/products-server";
 import { formatNGN, nairaToUsd } from "@/lib/currency";
 import ProductBottle from "@/components/product-bottle";
 import ProductCard from "@/components/product-card";
@@ -16,7 +16,7 @@ export async function generateMetadata({
   params: Promise<Params>;
 }): Promise<Metadata> {
   const { id } = await params;
-  const product = getProduct(id);
+  const product = await getDbProduct(id);
   if (!product) return { title: "Fragrance not found" };
   return {
     title: product.name,
@@ -26,14 +26,18 @@ export async function generateMetadata({
 
 export default async function ProductPage({ params }: { params: Promise<Params> }) {
   const { id } = await params;
-  const product = getProduct(id);
+  const product = await getDbProduct(id);
   if (!product) notFound();
 
-  const recommendations = PRODUCTS.filter(
-    (p) => p.id !== product.id && (p.family === product.family || p.category === product.category)
-  )
+  const allProducts = await getActiveProducts();
+  const recommendations = allProducts
+    .filter(
+      (p) => p.id !== product.id && (p.family === product.family || p.category === product.category)
+    )
     .slice(0, 4)
-    .concat(PRODUCTS.filter((p) => p.id !== product.id && p.family !== product.family).slice(0, 4))
+    .concat(
+      allProducts.filter((p) => p.id !== product.id && p.family !== product.family).slice(0, 4)
+    )
     .filter((p, i, arr) => arr.findIndex((x) => x.id === p.id) === i)
     .slice(0, 4);
 
@@ -51,7 +55,7 @@ export default async function ProductPage({ params }: { params: Promise<Params> 
       </nav>
 
       <div className="grid gap-10 lg:grid-cols-2">
-        {/* Art */}
+        {/* Art — uploaded photo takes priority, otherwise the bottle art */}
         <div className="relative">
           <div
             className="relative flex h-[420px] items-center justify-center overflow-hidden rounded-[2rem] border border-white/[0.06] sm:h-[520px]"
@@ -65,9 +69,17 @@ export default async function ProductPage({ params }: { params: Promise<Params> 
                 background: `radial-gradient(60% 60% at 50% 55%, ${product.palette[1]}55, transparent 70%)`,
               }}
             />
-            <div className="animate-floaty relative drop-shadow-2xl">
-              <ProductBottle product={product} className="h-80 w-auto sm:h-[400px]" />
-            </div>
+            {product.image ? (
+              <img
+                src={product.image}
+                alt={product.name}
+                className="relative h-full w-full object-cover transition-transform duration-700"
+              />
+            ) : (
+              <div className="animate-floaty relative drop-shadow-2xl">
+                <ProductBottle product={product} className="h-80 w-auto sm:h-[400px]" />
+              </div>
+            )}
             {product.tag && (
               <span className="absolute left-4 top-4 rounded-full border border-gold-400/40 bg-gold-400/15 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-gold-200">
                 {product.tag}

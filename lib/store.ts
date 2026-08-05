@@ -1,7 +1,6 @@
 "use client";
 
-import type { Customer, Order, Product } from "./types";
-import { PRODUCTS } from "./products";
+import type { Order } from "./types";
 
 /* ------------------------------------------------------------------ */
 /* Small localStorage helpers (client-only, SSR-safe)                  */
@@ -51,11 +50,6 @@ export function getOrder(id: string): Order | undefined {
   return getOrders().find((o) => o.id === id);
 }
 
-export function updateOrderStatus(id: string, status: Order["status"]) {
-  const orders = getOrders().map((o) => (o.id === id ? { ...o, status } : o));
-  write(ORDERS_KEY, orders);
-}
-
 /* ------------------------------------------------------------------ */
 /* Wishlist                                                            */
 /* ------------------------------------------------------------------ */
@@ -78,75 +72,3 @@ export function isWishlisted(productId: string): boolean {
   return getWishlist().includes(productId);
 }
 
-/* ------------------------------------------------------------------ */
-/* Product overlay — admin edits persist on top of the demo catalog    */
-/* ------------------------------------------------------------------ */
-
-const OVERLAY_KEY = "scentury21_product_overlay";
-
-export function getProducts(): Product[] {
-  const overlay = read<Record<string, Product>>(OVERLAY_KEY, {});
-  const overlayIds = new Set(Object.keys(overlay));
-  const base = PRODUCTS.filter((p) => !overlayIds.has(p.id));
-  return [...base, ...Object.values(overlay)];
-}
-
-export function saveProduct(product: Product) {
-  const overlay = read<Record<string, Product>>(OVERLAY_KEY, {});
-  overlay[product.id] = product;
-  write(OVERLAY_KEY, overlay);
-}
-
-export function deleteProduct(id: string) {
-  const overlay = read<Record<string, Product>>(OVERLAY_KEY, {});
-  delete overlay[id];
-  write(OVERLAY_KEY, overlay);
-}
-
-/* ------------------------------------------------------------------ */
-/* Customers (derived from orders + profile)                           */
-/* ------------------------------------------------------------------ */
-
-export function getCustomers(): Customer[] {
-  const orders = getOrders();
-  const byEmail = new Map<string, Customer>();
-  for (const order of orders) {
-    const key = order.customer.email.toLowerCase();
-    const existing = byEmail.get(key);
-    const spent = order.total;
-    if (existing) {
-      existing.orders += 1;
-      existing.totalSpent += spent;
-    } else {
-      byEmail.set(key, {
-        id: uid("CUST"),
-        name: order.customer.name,
-        email: order.customer.email,
-        phone: order.customer.phone,
-        country: order.delivery.country,
-        orders: 1,
-        totalSpent: spent,
-        joined: order.createdAt,
-      });
-    }
-  }
-  return Array.from(byEmail.values());
-}
-
-/* ------------------------------------------------------------------ */
-/* Demo admin session                                                  */
-/* ------------------------------------------------------------------ */
-
-const ADMIN_KEY = "scentury21_admin";
-
-export function isAdmin(): boolean {
-  return read<boolean>(ADMIN_KEY, false);
-}
-
-export function loginAsAdmin() {
-  write(ADMIN_KEY, true);
-}
-
-export function logoutAdmin() {
-  write(ADMIN_KEY, false);
-}

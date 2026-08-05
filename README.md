@@ -4,10 +4,11 @@ A premium perfume e-commerce platform — luxury customer storefront + admin
 dashboard in one **Next.js** app. Built from the *Scentury21 Final Updated Plan
 v2* specification.
 
-> **Currently shipping:** a complete, polished storefront and admin dashboard
-> running on demo data (localStorage). Supabase, Paystack and WhatsApp
-> integrations are scaffolded and ready — add your keys to go live (see
-> [Going live](#-going-live)).
+> **Currently shipping:** a complete storefront and admin dashboard backed by
+> **Supabase** — products, orders and admins live in the database with Row Level
+> Security. The admin signs in with Google and only accounts granted the admin
+> role can access it. Paystack and WhatsApp integrations are ready — add your
+> keys to go live (see [Going live](#-going-live)).
 
 ![stack](https://img.shields.io/badge/stack-Next.js%2016%20·%20TypeScript%20·%20Tailwind%20v4-blue)
 
@@ -30,11 +31,14 @@ v2* specification.
 - 🤍 Wishlist with live badge
 
 **Admin dashboard** (`/admin`)
+- 🔐 **Google-only sign-in** — access is granted only to accounts with
+  role = 'admin' in `public.profiles` (managed in Supabase)
 - 📊 Analytics: revenue, orders, customers, low-stock, weekly sales chart, top products
-- 🫙 Product management: add / edit / delete (persists in this browser)
+- 🫙 Product management: add / edit / delete, **photo upload** (Supabase Storage),
+  **category** (Oil Perfumes / Spray Perfumes) and **size in ml**
 - 📦 Orders: status management, full delivery details incl. GPS, WhatsApp customer link
-- 👥 Customers table derived from orders
-- Demo login gate — production uses Supabase Auth + database-enforced RLS
+- 👥 Customers table derived from real orders
+- Everything enforced by RLS in the database, never just the frontend
 
 ## 🚀 Quickstart
 
@@ -80,14 +84,15 @@ supabase/schema.sql    — full schema + RLS policies, ready to run
 
 ### 1 · Supabase (auth, database, storage)
 1. Create a free project at [supabase.com](https://supabase.com).
-2. In the SQL editor, run **`supabase/schema.sql`** — creates all tables and RLS policies.
+2. In the SQL editor, run **`supabase/schema.sql`** — creates all tables, RLS
+   policies, the public `product-images` Storage bucket, and seeds the perfume
+   catalog (12 sprays, category = "Spray Perfumes"). Safe to re-run.
 3. Copy your Project URL + anon key into `.env.local` (see `.env.example`).
 4. Enable **Google** and email/password providers in Authentication → Providers.
-5. Create a `product-images` Storage bucket (public) for admin uploads.
-
-The schema enforces roles in the **database** (RLS), never just the frontend:
-normal signups get `customer`; promote someone to admin with
-`update public.profiles set role = 'admin' where id = '<uid>';`.
+5. **Grant yourself admin**: sign in with Google once, then run
+   `update public.profiles set role = 'admin' where email = 'YOUR_EMAIL';`
+   (or set the role in Table editor → profiles). Admins sign in with Google and
+   are the only accounts that can manage products, orders and photos.
 
 ### 2 · Paystack (payments)
 1. Create an account at [paystack.com](https://paystack.com).

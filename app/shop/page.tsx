@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
 import ShopClient from "@/components/shop-client";
-import { PRODUCTS } from "@/lib/products";
+import { getActiveProducts } from "@/lib/products-server";
 
 export const metadata: Metadata = {
   title: "Shop All Fragrances",
   description:
-    "Browse the full Scentury21 collection — extraits, eaux de parfum and eaux de toilette with search, filters and sorting.",
+    "Browse the full Scentury21 collection — oil and spray perfumes with search, filters and sorting.",
 };
 
 export default async function ShopPage({
@@ -17,6 +17,8 @@ export default async function ShopPage({
   const initialCategory =
     typeof cat === "string" && cat.length > 0 && cat.length < 40 ? cat : undefined;
 
+  const products = await getActiveProducts();
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
       <div className="mb-8">
@@ -25,11 +27,10 @@ export default async function ShopPage({
           Shop fragrances
         </h1>
         <p className="mt-3 max-w-2xl text-zinc-400">
-          Twelve signatures, three concentrations, one obsession. Search, filter and
-          sort to find yours.
+          Oil perfumes and spray perfumes — search, filter and sort to find yours.
         </p>
       </div>
-      <ShopClient products={PRODUCTS} initialCategory={initialCategory} />
+      <ShopClient products={products} initialCategory={initialCategory} />
     </div>
   );
 }

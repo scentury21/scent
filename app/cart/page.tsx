@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useCart } from "@/lib/cart";
-import { getProduct } from "@/lib/products";
 import { formatNGN } from "@/lib/currency";
 import ProductBottle from "@/components/product-bottle";
 import { useMemo } from "react";
@@ -11,7 +10,7 @@ const FREE_SHIPPING_THRESHOLD = 250000;
 const SHIPPING_FEE = 5000;
 
 export default function CartPage() {
-  const { items, updateQty, removeItem, subtotal, hydrated } = useCart();
+  const { items, updateQty, removeItem, subtotal, hydrated, getProduct } = useCart();
 
   const shipping = subtotal === 0 || subtotal >= FREE_SHIPPING_THRESHOLD ? 0 : SHIPPING_FEE;
   const total = subtotal + shipping;
@@ -25,7 +24,7 @@ export default function CartPage() {
       })
       .filter(Boolean);
     return `Hello Scentury21! I'd like to order:%0A${lines.join("%0A")}%0ATotal: ${formatNGN(total)}`;
-  }, [items, total]);
+  }, [items, total, getProduct]);
 
   if (!hydrated) {
     return (

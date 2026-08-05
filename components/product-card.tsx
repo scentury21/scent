@@ -21,7 +21,7 @@ export default function ProductCard({ product }: { product: Product }) {
   const [added, setAdded] = useState(false);
 
   useEffect(() => {
-    setWished(isWishlisted(product.id));
+    Promise.resolve().then(() => setWished(isWishlisted(product.id)));
   }, [product.id]);
 
   const handleAdd = (e: React.MouseEvent) => {
@@ -71,9 +71,17 @@ export default function ProductCard({ product }: { product: Product }) {
             <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21.2l7.8-7.8 1-1a5.5 5.5 0 0 0 0-7.8z" />
           </svg>
         </button>
-        <div className="animate-floaty transition-transform duration-500 group-hover:scale-110">
-          <ProductBottle product={product} className="h-44 w-auto drop-shadow-2xl" />
-        </div>
+        {product.image ? (
+          <img
+            src={product.image}
+            alt={product.name}
+            className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
+          />
+        ) : (
+          <div className="animate-floaty transition-transform duration-500 group-hover:scale-110">
+            <ProductBottle product={product} className="h-44 w-auto drop-shadow-2xl" />
+          </div>
+        )}
       </div>
 
       {/* Info */}

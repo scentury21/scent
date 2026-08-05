@@ -27,6 +27,7 @@ export type Product = {
   notes: ProductNotes;
   description: string;
   palette: [string, string, string];
+  image?: string;
   tag?: "Bestseller" | "New" | "Limited";
   featured?: boolean;
 };

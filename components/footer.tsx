@@ -42,9 +42,8 @@ export default function Footer() {
             <h4 className="mb-4 text-xs font-bold uppercase tracking-[0.2em] text-gold-300">Shop</h4>
             <ul className="space-y-2.5 text-sm text-zinc-400">
               <li><Link href="/shop" className="transition-colors hover:text-gold-200">All fragrances</Link></li>
-              <li><Link href="/shop?cat=Extrait de Parfum" className="transition-colors hover:text-gold-200">Extrait de Parfum</Link></li>
-              <li><Link href="/shop?cat=Eau de Parfum" className="transition-colors hover:text-gold-200">Eau de Parfum</Link></li>
-              <li><Link href="/shop?cat=Eau de Toilette" className="transition-colors hover:text-gold-200">Eau de Toilette</Link></li>
+              <li><Link href="/shop?cat=Oil Perfumes" className="transition-colors hover:text-gold-200">Oil Perfumes</Link></li>
+              <li><Link href="/shop?cat=Spray Perfumes" className="transition-colors hover:text-gold-200">Spray Perfumes</Link></li>
               <li><Link href="/wishlist" className="transition-colors hover:text-gold-200">Wishlist</Link></li>
             </ul>
           </div>
@@ -102,7 +101,7 @@ export default function Footer() {
             </p>
             {done ? (
               <div className="rounded-xl border border-emerald-400/30 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-200">
-                You're on the list — welcome to the house. ✨
+                You&apos;re on the list — welcome to the house. ✨
               </div>
             ) : (
               <form

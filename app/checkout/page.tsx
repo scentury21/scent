@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useCart } from "@/lib/cart";
-import { getProduct } from "@/lib/products";
+import { createClient } from "@/lib/supabase/client";
+import { mapProductRow, type Product, type ProductRow } from "@/lib/products";
 import { COUNTRIES, getCountry } from "@/lib/countries";
 import { formatNGN } from "@/lib/currency";
 import { saveOrder, uid } from "@/lib/store";
@@ -59,6 +60,7 @@ export default function CheckoutPage() {
   const [paying, setPaying] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
+  const [catalog, setCatalog] = useState<Product[]>([]);
 
   const country = useMemo(() => getCountry(form.countryCode), [form.countryCode]);
   const shipping = subtotal === 0 || subtotal >= FREE_SHIPPING_THRESHOLD ? 0 : SHIPPING_FEE;
@@ -90,6 +92,18 @@ export default function CheckoutPage() {
       router.replace("/cart");
     }
   }, [hydrated, items.length, router]);
+
+  /* Load the live catalog so order items snapshot name/price/size */
+  useEffect(() => {
+    const supabase = createClient();
+    (async () => {
+      const { data } = await supabase
+        .from("products")
+        .select("*")
+        .eq("active", true);
+      setCatalog((data ?? []).map((row) => mapProductRow(row as ProductRow)));
+    })();
+  }, []);
 
   const set = (key: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setForm((f) => ({ ...f, [key]: e.target.value }));
@@ -129,7 +143,7 @@ export default function CheckoutPage() {
     createdAt: new Date().toISOString(),
     customer: { name: form.name, email: form.email, phone: form.phone },
     items: items.map((i) => {
-      const p = getProduct(i.productId);
+      const p = catalog.find((x) => x.id === i.productId);
       return {
         productId: i.productId,
         name: p?.name ?? i.productId,
@@ -159,8 +173,67 @@ export default function CheckoutPage() {
     status: status === "paid" ? "pending" : "pending",
   });
 
+  async function saveOrderToDb(order: Order) {
+    try {
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data: inserted, error } = await supabase
+        .from("orders")
+        .insert({
+          user_id: user.id,
+          order_number: order.id,
+          customer_name: order.customer.name,
+          customer_email: order.customer.email,
+          customer_phone: order.customer.phone,
+          status: order.status,
+          payment_status: order.payment.status,
+          payment_reference: order.payment.reference,
+          currency: "NGN",
+          subtotal_kobo: Math.round(order.subtotal * 100),
+          shipping_kobo: Math.round(order.shipping * 100),
+          total_kobo: Math.round(order.total * 100),
+          delivery_country: order.delivery.country,
+          delivery_country_code: order.delivery.countryCode,
+          delivery_region: order.delivery.region,
+          delivery_city: order.delivery.city,
+          delivery_postal: order.delivery.postal,
+          delivery_address: order.delivery.address,
+          delivery_landmark: order.delivery.landmark,
+          delivery_notes: order.delivery.notes,
+          delivery_latitude: order.delivery.latitude ?? null,
+          delivery_longitude: order.delivery.longitude ?? null,
+        })
+        .select("id")
+        .single();
+      if (error || !inserted) return;
+      const dbItems = order.items
+        .filter((i) =>
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+            i.productId
+          )
+        )
+        .map((i) => ({
+          order_id: inserted.id,
+          product_id: i.productId,
+          name: i.name,
+          size: i.size,
+          price_kobo: Math.round(i.price * 100),
+          qty: i.qty,
+        }));
+      if (dbItems.length > 0) {
+        await supabase.from("order_items").insert(dbItems);
+      }
+    } catch {
+      // The localStorage order below is the fallback if anything fails.
+    }
+  }
+
   const finishOrder = (order: Order) => {
     saveOrder(order);
+    void saveOrderToDb(order);
     clear();
     /* Fire-and-forget backend hooks (no-op in demo mode) */
     void fetch("/api/verify-payment", {
@@ -247,7 +320,7 @@ export default function CheckoutPage() {
   const whatsappText = useMemo(() => {
     const lines = items
       .map((i) => {
-        const p = getProduct(i.productId);
+        const p = catalog.find((x) => x.id === i.productId);
         return p ? `• ${p.name} (${p.size}) × ${i.qty} — ${formatNGN(p.price * i.qty)}` : "";
       })
       .filter(Boolean);
@@ -266,7 +339,7 @@ export default function CheckoutPage() {
     ]
       .filter(Boolean)
       .join("%0A");
-  }, [items, subtotal, total, gps, country, form]);
+  }, [items, subtotal, total, gps, country, form, catalog]);
 
   if (!hydrated) {
     return <div className="mx-auto max-w-3xl px-4 py-24 text-center text-sm text-zinc-500">Loading checkout…</div>;
@@ -453,7 +526,7 @@ export default function CheckoutPage() {
             <h2 className="font-display text-2xl font-semibold text-zinc-100">Summary</h2>
             <ul className="mt-4 space-y-3">
               {items.map((i) => {
-                const p = getProduct(i.productId);
+                const p = catalog.find((x) => x.id === i.productId);
                 if (!p) return null;
                 return (
                   <li key={i.productId} className="flex items-center justify-between gap-3 text-sm">

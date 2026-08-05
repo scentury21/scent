@@ -8,8 +8,9 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import type { CartItem } from "./types";
-import { getProduct } from "./products";
+import type { CartItem, Product } from "./types";
+import { createClient } from "@/lib/supabase/client";
+import { mapProductRow, type ProductRow } from "./products";
 
 const STORAGE_KEY = "scentury21_cart_v1";
 
@@ -22,6 +23,7 @@ type CartContextValue = {
   updateQty: (productId: string, qty: number) => void;
   clear: () => void;
   hydrated: boolean;
+  getProduct: (productId: string) => Product | undefined;
 };
 
 const CartContext = createContext<CartContextValue | null>(null);
@@ -41,10 +43,27 @@ function readStored(): CartItem[] {
 export function CartProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
   const [hydrated, setHydrated] = useState(false);
+  const [catalog, setCatalog] = useState<Product[]>([]);
 
   useEffect(() => {
-    setItems(readStored());
-    setHydrated(true);
+    // localStorage only exists on the client; hydrate after mount in a
+    // microtask so the effect body stays free of synchronous setState.
+    Promise.resolve().then(() => {
+      setItems(readStored());
+      setHydrated(true);
+    });
+  }, []);
+
+  /* Load the live catalog so names, sizes and totals stay in sync with the DB. */
+  useEffect(() => {
+    const supabase = createClient();
+    (async () => {
+      const { data } = await supabase
+        .from("products")
+        .select("*")
+        .eq("active", true);
+      setCatalog((data ?? []).map((row) => mapProductRow(row as ProductRow)));
+    })();
   }, []);
 
   useEffect(() => {
@@ -57,6 +76,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }, [items, hydrated]);
 
   const value = useMemo<CartContextValue>(() => {
+    const getProduct = (productId: string) => catalog.find((p) => p.id === productId);
+
     const addItem = (productId: string, qty = 1) => {
       setItems((prev) => {
         const existing = prev.find((i) => i.productId === productId);
@@ -87,8 +108,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
       return acc + (p ? p.price * i.qty : 0);
     }, 0);
 
-    return { items, count, subtotal, addItem, removeItem, updateQty, clear, hydrated };
-  }, [items, hydrated]);
+    return { items, count, subtotal, addItem, removeItem, updateQty, clear, hydrated, getProduct };
+  }, [items, hydrated, catalog]);
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 }
