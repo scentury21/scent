@@ -1,10 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { getOrders, getWishlist } from "@/lib/store";
 import { formatNGN, formatDate } from "@/lib/currency";
 import { createClient } from "@/lib/supabase/client";
+import OrderTracker from "@/components/order-tracker";
+import { fetchMyOrders } from "@/lib/orders";
+import type { Order } from "@/lib/types";
 import type { User } from "@supabase/supabase-js";
 
 const STATUS_STYLES: Record<string, string> = {
@@ -28,8 +31,35 @@ export default function ProfilePage() {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const orders = getOrders();
+  const [localOrders] = useState<Order[]>(() => getOrders());
+  const [dbOrders, setDbOrders] = useState<Order[] | null>(null);
   const wishCount = getWishlist().length;
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const live = await fetchMyOrders();
+      if (!cancelled) setDbOrders(live);
+    })();
+    const t = window.setInterval(() => {
+      (async () => {
+        const live = await fetchMyOrders();
+        if (!cancelled) setDbOrders(live);
+      })();
+    }, 20000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(t);
+    };
+  }, []);
+
+  /* Local orders are snapshots — DB orders (when signed in) override with live status. */
+  const orders = useMemo(() => {
+    const byId = new Map<string, Order>();
+    for (const o of localOrders) byId.set(o.id, o);
+    for (const o of dbOrders ?? []) byId.set(o.id, o);
+    return [...byId.values()];
+  }, [localOrders, dbOrders]);
 
   useEffect(() => {
     const supabase = createClient();
@@ -146,7 +176,20 @@ export default function ProfilePage() {
 
         {/* Order history */}
         <div className="lg:col-span-2">
-          <h2 className="font-display text-2xl font-semibold text-zinc-100">Order history</h2>
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="font-display text-2xl font-semibold text-zinc-100">Order history</h2>
+            {dbOrders !== null && (
+              <span className="flex items-center gap-1.5 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-300">
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
+                Live
+              </span>
+            )}
+          </div>
+          {dbOrders !== null && (
+            <p className="mt-1 text-xs text-zinc-500">
+              Status updates live from your account — refreshes automatically.
+            </p>
+          )}
 
           {orders.length === 0 ? (
             <div className="glass mt-4 rounded-2xl p-12 text-center">
@@ -172,7 +215,10 @@ export default function ProfilePage() {
                       </span>
                     </div>
                   </div>
-                  <ul className="mt-3 space-y-1.5 text-sm text-zinc-400">
+                  <div className="mt-4">
+                    <OrderTracker status={o.status} />
+                  </div>
+                  <ul className="mt-4 space-y-1.5 text-sm text-zinc-400">
                     {o.items.map((i) => (
                       <li key={i.productId} className="flex justify-between">
                         <span>{i.name} × {i.qty}</span>

@@ -4,7 +4,9 @@ import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { getOrder } from "@/lib/store";
-import { formatNGN, formatDate } from "@/lib/currency";
+import { formatNGN } from "@/lib/currency";
+import OrderTracker from "@/components/order-tracker";
+import { fetchOrderByNumber } from "@/lib/orders";
 import type { Order } from "@/lib/types";
 
 const STATUS_LABEL: Record<Order["status"], string> = {
@@ -18,10 +20,32 @@ const STATUS_LABEL: Record<Order["status"], string> = {
 function SuccessInner() {
   const params = useSearchParams();
   const id = params.get("id");
-  const [order, setOrder] = useState<Order | null>(null);
+  const [order, setOrder] = useState<Order | null>(() => (id ? getOrder(id) ?? null : null));
+  const [live, setLive] = useState(false);
 
   useEffect(() => {
-    if (id) setOrder(getOrder(id) ?? null);
+    if (!id) return;
+    let cancelled = false;
+    (async () => {
+      const liveOrder = await fetchOrderByNumber(id);
+      if (!cancelled && liveOrder) {
+        setOrder(liveOrder);
+        setLive(true);
+      }
+    })();
+    const t = window.setInterval(() => {
+      (async () => {
+        const liveOrder = await fetchOrderByNumber(id);
+        if (!cancelled && liveOrder) {
+          setOrder(liveOrder);
+          setLive(true);
+        }
+      })();
+    }, 15000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(t);
+    };
   }, [id]);
 
   if (!id) {
@@ -124,10 +148,30 @@ function SuccessInner() {
       </div>
 
       <div className="mt-4 glass rounded-2xl p-5">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-gold-300">Order progress</h2>
+          {live && (
+            <span className="flex items-center gap-1.5 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-300">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
+              Live
+            </span>
+          )}
+        </div>
+        <div className="mt-4">
+          <OrderTracker status={order.status} />
+        </div>
+        {!live && (
+          <p className="mt-3 text-[11px] text-zinc-500">
+            Sign in to see this order update live as it progresses.
+          </p>
+        )}
+      </div>
+
+      <div className="mt-4 glass rounded-2xl p-5">
         <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-gold-300">Next steps</h2>
         <ul className="mt-3 space-y-2 text-sm text-zinc-400">
           <li>1 · Your payment was verified and the order is now in our queue.</li>
-          <li>2 · A WhatsApp notification goes to our team with your full delivery details.</li>
+          <li>2 · Our team is notified instantly with your full delivery details.</li>
           <li>3 · We confirm dispatch within 24 hours — watch your WhatsApp and email.</li>
         </ul>
         <div className="mt-4 flex flex-wrap gap-3">
