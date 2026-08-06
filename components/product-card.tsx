@@ -46,11 +46,11 @@ export default function ProductCard({
     window.dispatchEvent(new Event("scentury:wishlist"));
   };
 
-  const addColorClass = added
-    ? "border border-emerald-400/40 bg-emerald-400/15 text-emerald-200"
+  const addClass = added
+    ? "btn mt-2.5 w-full py-2 text-xs border border-emerald-400/40 bg-emerald-400/15 text-emerald-200"
     : dark
-      ? "bg-gradient-to-b from-[#f3d288] to-[#d59d3a] text-[#1c1407] shadow-[0_10px_28px_-10px_rgba(213,157,58,0.55)] hover:brightness-105 hover:shadow-[0_14px_36px_-10px_rgba(213,157,58,0.7)] active:scale-[0.98]"
-      : "btn-gold";
+      ? "mt-2.5 inline-flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-b from-[#f3d288] to-[#d59d3a] px-6 py-2.5 text-xs font-bold text-[#1c1407] shadow-[0_10px_28px_-10px_rgba(213,157,58,0.55)] hover:brightness-105 hover:shadow-[0_14px_36px_-10px_rgba(213,157,58,0.7)] active:scale-[0.98]"
+      : "btn btn-gold mt-2.5 w-full py-2 text-xs";
 
   return (
     <Link
@@ -158,10 +158,7 @@ export default function ProductCard({
             </div>
             {!dark && <div className="text-[10px] text-zinc-500">≈ {nairaToUsd(product.price)}</div>}
           </div>
-          <button
-            onClick={handleAdd}
-            className={`mt-2.5 inline-flex w-full items-center justify-center gap-2 rounded-full px-6 py-2.5 text-xs font-bold transition-all duration-300 cursor-pointer select-none ${addColorClass}`}
-          >
+          <button onClick={handleAdd} className={addClass}>
             {added ? (
               "Added ✓"
             ) : (
