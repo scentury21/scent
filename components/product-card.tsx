@@ -46,14 +46,14 @@ export default function ProductCard({ product }: { product: Product }) {
     >
       {/* Art area */}
       <div
-        className="relative flex h-56 items-center justify-center overflow-hidden"
+        className="relative flex aspect-[4/3] items-center justify-center overflow-hidden"
         style={{
           background: `radial-gradient(120% 120% at 50% 0%, ${product.palette[0]}26 0%, transparent 55%), linear-gradient(180deg, rgba(255,255,255,0.03), rgba(0,0,0,0.2))`,
         }}
       >
         {product.tag && (
           <span
-            className={`absolute left-3 top-3 z-10 rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest ${TAG_STYLES[product.tag]}`}
+            className={`absolute left-2.5 top-2.5 z-10 rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest ${TAG_STYLES[product.tag]}`}
           >
             {product.tag}
           </span>
@@ -61,13 +61,13 @@ export default function ProductCard({ product }: { product: Product }) {
         <button
           onClick={handleWish}
           aria-label={wished ? "Remove from wishlist" : "Add to wishlist"}
-          className={`absolute right-3 top-3 z-10 flex h-8 w-8 items-center justify-center rounded-full border backdrop-blur transition-all duration-300 ${
+          className={`absolute right-2.5 top-2.5 z-10 flex h-7 w-7 items-center justify-center rounded-full border backdrop-blur transition-all duration-300 ${
             wished
               ? "border-gold-400/60 bg-gold-400/20 text-gold-300"
               : "border-white/10 bg-white/5 text-zinc-400 hover:text-gold-300 hover:border-gold-400/40"
           }`}
         >
-          <svg width="15" height="15" viewBox="0 0 24 24" fill={wished ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill={wished ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2">
             <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21.2l7.8-7.8 1-1a5.5 5.5 0 0 0 0-7.8z" />
           </svg>
         </button>
@@ -79,36 +79,56 @@ export default function ProductCard({ product }: { product: Product }) {
           />
         ) : (
           <div className="animate-floaty transition-transform duration-500 group-hover:scale-110">
-            <ProductBottle product={product} className="h-44 w-auto drop-shadow-2xl" />
+            <ProductBottle product={product} className="h-24 w-auto drop-shadow-xl sm:h-36" />
           </div>
         )}
       </div>
 
       {/* Info */}
-      <div className="flex flex-1 flex-col gap-2 p-4">
-        <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-gold-400/80">
+      <div className="flex flex-1 flex-col gap-1.5 p-3 sm:p-4">
+        <div className="truncate text-[9px] font-bold uppercase tracking-[0.16em] text-gold-400/80 sm:text-[10px]">
           {product.category} · {product.size}
         </div>
-        <h3 className="font-display text-xl font-semibold leading-tight text-zinc-100">
+        <h3 className="line-clamp-1 font-display text-base font-semibold leading-snug text-zinc-100 sm:text-lg">
           {product.name}
         </h3>
-        <p className="line-clamp-1 text-xs text-zinc-400">{product.subtitle}</p>
+        <p className="line-clamp-1 text-[11px] text-zinc-400 sm:text-xs">{product.subtitle}</p>
         <div className="flex items-center gap-1.5">
           <Stars rating={product.rating} size={12} />
           <span className="text-[11px] text-zinc-500">
             {product.rating.toFixed(1)} ({product.reviewsCount})
           </span>
         </div>
-        <div className="mt-auto flex items-end justify-between pt-2">
-          <div>
-            <div className="font-display text-lg font-bold text-gold-200">{formatNGN(product.price)}</div>
-            <div className="text-[10px] text-zinc-500">≈ {nairaToUsd(product.price)}</div>
+
+        <div className="mt-auto pt-2">
+          <div className="flex items-end justify-between gap-2">
+            <div>
+              <div className="font-display text-base font-bold text-gold-200 sm:text-lg">
+                {formatNGN(product.price)}
+              </div>
+              <div className="text-[10px] text-zinc-500">≈ {nairaToUsd(product.price)}</div>
+            </div>
           </div>
           <button
             onClick={handleAdd}
-            className={`btn px-4 py-2 text-xs ${added ? "bg-emerald-400/20 text-emerald-200 border border-emerald-400/40" : "btn-gold"}`}
+            className={`btn mt-2.5 w-full py-2 text-xs ${
+              added
+                ? "border border-emerald-400/40 bg-emerald-400/15 text-emerald-200"
+                : "btn-gold"
+            }`}
           >
-            {added ? "Added ✓" : "Add to cart"}
+            {added ? (
+              "Added ✓"
+            ) : (
+              <>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
+                  <path d="M3 6h18" />
+                  <path d="M16 10a4 4 0 0 1-8 0" />
+                </svg>
+                Add to cart
+              </>
+            )}
           </button>
         </div>
       </div>
