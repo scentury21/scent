@@ -20,17 +20,10 @@ export default async function ShopPage({
   const products = await getActiveProducts();
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
-      <div className="mb-8">
-        <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-gold-400">The collection</p>
-        <h1 className="mt-2 font-display text-4xl font-semibold text-zinc-50 sm:text-5xl">
-          Shop fragrances
-        </h1>
-        <p className="mt-3 max-w-2xl text-zinc-400">
-          Oil perfumes and spray perfumes — search, filter and sort to find yours.
-        </p>
+    <div className="force-dark" style={{ backgroundColor: "#12110f" }}>
+      <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
+        <ShopClient products={products} initialCategory={initialCategory} />
       </div>
-      <ShopClient products={products} initialCategory={initialCategory} />
     </div>
   );
 }

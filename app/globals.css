@@ -205,3 +205,10 @@ body {
   background-size: 200% 100%;
   animation: shimmer 3.5s linear infinite;
 }
+
+/* Force a subtree to always resolve light-dark() colors as the dark theme.
+   Used by the shop section so it keeps the premium dark look even when the
+   rest of the site is in light mode. */
+.force-dark {
+  color-scheme: dark;
+}

@@ -15,7 +15,14 @@ const TAG_STYLES: Record<NonNullable<Product["tag"]>, string> = {
   Limited: "bg-fuchsia-400/15 text-fuchsia-200 border-fuchsia-400/40",
 };
 
-export default function ProductCard({ product }: { product: Product }) {
+export default function ProductCard({
+  product,
+  variant = "glass",
+}: {
+  product: Product;
+  variant?: "glass" | "dark";
+}) {
+  const dark = variant === "dark";
   const { addItem } = useCart();
   const [wished, setWished] = useState(false);
   const [added, setAdded] = useState(false);
@@ -39,10 +46,18 @@ export default function ProductCard({ product }: { product: Product }) {
     window.dispatchEvent(new Event("scentury:wishlist"));
   };
 
+  const addColorClass = added
+    ? "border border-emerald-400/40 bg-emerald-400/15 text-emerald-200"
+    : dark
+      ? "bg-gradient-to-b from-[#f3d288] to-[#d59d3a] text-[#1c1407] shadow-[0_10px_28px_-10px_rgba(213,157,58,0.55)] hover:brightness-105 hover:shadow-[0_14px_36px_-10px_rgba(213,157,58,0.7)] active:scale-[0.98]"
+      : "btn-gold";
+
   return (
     <Link
       href={`/product/${product.id}`}
-      className="group card-hover relative flex flex-col overflow-hidden rounded-2xl glass"
+      className={`group card-hover relative flex flex-col overflow-hidden rounded-2xl ${
+        dark ? "border border-white/[0.06] bg-[#231f1a]" : "glass"
+      }`}
     >
       {/* Art area */}
       <div
@@ -51,12 +66,33 @@ export default function ProductCard({ product }: { product: Product }) {
           background: `radial-gradient(120% 120% at 50% 0%, ${product.palette[0]}26 0%, transparent 55%), linear-gradient(180deg, rgba(255,255,255,0.03), rgba(0,0,0,0.2))`,
         }}
       >
-        {product.tag && (
-          <span
-            className={`absolute left-2.5 top-2.5 z-10 rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest ${TAG_STYLES[product.tag]}`}
-          >
-            {product.tag}
-          </span>
+        {dark ? (
+          <div className="absolute left-2.5 top-2.5 z-10 flex flex-wrap items-center gap-1.5">
+            {product.stock > 0 ? (
+              <span className="rounded-full border border-emerald-400/20 bg-emerald-950/70 px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest text-emerald-300">
+                In stock
+              </span>
+            ) : (
+              <span className="rounded-full border border-red-400/20 bg-red-950/70 px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest text-red-300">
+                Out of stock
+              </span>
+            )}
+            {product.tag && (
+              <span
+                className={`rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest ${TAG_STYLES[product.tag]}`}
+              >
+                {product.tag}
+              </span>
+            )}
+          </div>
+        ) : (
+          product.tag && (
+            <span
+              className={`absolute left-2.5 top-2.5 z-10 rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest ${TAG_STYLES[product.tag]}`}
+            >
+              {product.tag}
+            </span>
+          )
         )}
         <button
           onClick={handleWish}
@@ -64,7 +100,7 @@ export default function ProductCard({ product }: { product: Product }) {
           className={`absolute right-2.5 top-2.5 z-10 flex h-7 w-7 items-center justify-center rounded-full border backdrop-blur transition-all duration-300 ${
             wished
               ? "border-gold-400/60 bg-gold-400/20 text-gold-300"
-              : "border-white/10 bg-white/5 text-zinc-400 hover:text-gold-300 hover:border-gold-400/40"
+              : "border-white/10 bg-white/5 text-zinc-400 hover:border-gold-400/40 hover:text-gold-300"
           }`}
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill={wished ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2">
@@ -79,43 +115,52 @@ export default function ProductCard({ product }: { product: Product }) {
           />
         ) : (
           <div className="animate-floaty transition-transform duration-500 group-hover:scale-110">
-            <ProductBottle product={product} className="h-24 w-auto drop-shadow-xl sm:h-36" />
+            <ProductBottle
+              product={product}
+              className={`h-24 w-auto drop-shadow-xl ${dark ? "" : "sm:h-36"}`}
+            />
           </div>
         )}
       </div>
 
       {/* Info */}
       <div className="flex flex-1 flex-col gap-1.5 p-3 sm:p-4">
-        <div className="truncate text-[9px] font-bold uppercase tracking-[0.16em] text-gold-400/80 sm:text-[10px]">
-          {product.category} · {product.size}
-        </div>
-        <h3 className="line-clamp-1 font-display text-base font-semibold leading-snug text-zinc-100 sm:text-lg">
+        {!dark && (
+          <div className="truncate text-[9px] font-bold uppercase tracking-[0.16em] text-gold-400/80 sm:text-[10px]">
+            {product.category} · {product.size}
+          </div>
+        )}
+        <h3
+          className={`line-clamp-1 font-display font-semibold leading-snug text-zinc-50 ${
+            dark ? "text-lg sm:text-xl" : "text-base sm:text-lg"
+          }`}
+        >
           {product.name}
         </h3>
         <p className="line-clamp-1 text-[11px] text-zinc-400 sm:text-xs">{product.subtitle}</p>
-        <div className="flex items-center gap-1.5">
-          <Stars rating={product.rating} size={12} />
-          <span className="text-[11px] text-zinc-500">
-            {product.rating.toFixed(1)} ({product.reviewsCount})
-          </span>
-        </div>
+        {!dark && (
+          <div className="flex items-center gap-1.5">
+            <Stars rating={product.rating} size={12} />
+            <span className="text-[11px] text-zinc-500">
+              {product.rating.toFixed(1)} ({product.reviewsCount})
+            </span>
+          </div>
+        )}
 
         <div className="mt-auto pt-2">
           <div className="flex items-end justify-between gap-2">
-            <div>
-              <div className="font-display text-base font-bold text-gold-200 sm:text-lg">
-                {formatNGN(product.price)}
-              </div>
-              <div className="text-[10px] text-zinc-500">≈ {nairaToUsd(product.price)}</div>
+            <div
+              className={`font-display font-bold ${
+                dark ? "text-lg text-gold-300 sm:text-xl" : "text-base text-gold-200 sm:text-lg"
+              }`}
+            >
+              {formatNGN(product.price)}
             </div>
+            {!dark && <div className="text-[10px] text-zinc-500">≈ {nairaToUsd(product.price)}</div>}
           </div>
           <button
             onClick={handleAdd}
-            className={`btn mt-2.5 w-full py-2 text-xs ${
-              added
-                ? "border border-emerald-400/40 bg-emerald-400/15 text-emerald-200"
-                : "btn-gold"
-            }`}
+            className={`mt-2.5 inline-flex w-full items-center justify-center gap-2 rounded-full px-6 py-2.5 text-xs font-bold transition-all duration-300 cursor-pointer select-none ${addColorClass}`}
           >
             {added ? (
               "Added ✓"
