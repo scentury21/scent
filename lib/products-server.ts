@@ -1,6 +1,37 @@
 import { createClient } from "@/lib/supabase/server";
 import { mapProductRow, type Product, type ProductRow } from "./products";
 
+export type ProductReview = {
+  id: string;
+  author: string;
+  rating: number;
+  text: string;
+  verified: boolean;
+  createdAt: string;
+};
+
+/** Real customer reviews for a product, newest first (public read RLS). */
+export async function getProductReviews(productId: string): Promise<ProductReview[]> {
+  try {
+    const supabase = await createClient();
+    const { data } = await supabase
+      .from("reviews")
+      .select("id, author, rating, text, verified, created_at")
+      .eq("product_id", productId)
+      .order("created_at", { ascending: false });
+    return (data ?? []).map((r) => ({
+      id: r.id as string,
+      author: r.author as string,
+      rating: Number(r.rating) || 0,
+      text: r.text as string,
+      verified: Boolean(r.verified),
+      createdAt: r.created_at as string,
+    }));
+  } catch {
+    return [];
+  }
+}
+
 /** All active products from the database, most-featured first. */
 export async function getActiveProducts(): Promise<Product[]> {
   try {

@@ -69,6 +69,24 @@ export default function AdminOrdersPage() {
       return;
     }
     setOrders((prev) => prev.map((o) => (o.id === id ? { ...o, status } : o)));
+    /* Email the customer about their new status (fire-and-forget). */
+    const row = orders.find((o) => o.id === id);
+    if (row) {
+      void fetch("/api/email-notify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          order: {
+            order_number: row.order_number,
+            customer_name: row.customer_name,
+            customer_email: row.customer_email,
+            total_kobo: row.total_kobo,
+            currency: "NGN",
+          },
+          status,
+        }),
+      }).catch(() => {});
+    }
   }
 
   const itemsFor = (id: string) => items.filter((i) => i.order_id === id);

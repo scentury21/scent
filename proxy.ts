@@ -1,7 +1,21 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-const PUBLIC_PATHS = ["/", "/login", "/signup", "/verify-otp", "/auth"];
+const PUBLIC_PATHS = [
+  "/",
+  "/login",
+  "/signup",
+  "/verify-otp",
+  "/auth",
+  // Browsing, cart and checkout are open to visitors — only the profile,
+  // wishlist and admin areas require an account.
+  "/shop",
+  "/product",
+  "/cart",
+  "/checkout",
+  "/track",
+  "/wishlist",
+];
 
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });

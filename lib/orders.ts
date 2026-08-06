@@ -120,6 +120,31 @@ export async function fetchMyOrders(): Promise<Order[]> {
   );
 }
 
+/**
+ * Guest order lookup via the security-definer RPCs — returns the order ONLY
+ * when both the order number and the customer email match, so anyone can
+ * check their own order without exposing anyone else's.
+ */
+export async function lookupGuestOrder(
+  orderNumber: string,
+  email: string
+): Promise<Order | null> {
+  const supabase = createClient();
+  const { data: rows } = await supabase.rpc("get_order_for_customer", {
+    p_order_number: orderNumber,
+    p_email: email,
+  });
+  const row = (rows as OrderRow[] | null)?.[0];
+  if (!row) return null;
+
+  const { data: itemRows } = await supabase.rpc("get_order_items_for_customer", {
+    p_order_id: row.id,
+    p_email: email,
+  });
+
+  return mapOrderRow(row, (itemRows ?? []) as ItemRow[]);
+}
+
 /** A single order by its order number (e.g. "SC-XXXX"), scoped to the user. */
 export async function fetchOrderByNumber(orderNumber: string): Promise<Order | null> {
   const supabase = createClient();

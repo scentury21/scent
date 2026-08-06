@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getActiveProducts, getDbProduct } from "@/lib/products-server";
-import { formatNGN, nairaToUsd } from "@/lib/currency";
+import { getActiveProducts, getDbProduct, getProductReviews } from "@/lib/products-server";
+import { formatNGN, nairaToUsd, formatDate } from "@/lib/currency";
 import ProductBottle from "@/components/product-bottle";
 import ProductCard from "@/components/product-card";
 import Stars from "@/components/stars";
 import AddToCartPanel from "@/components/add-to-cart";
+import ReviewForm from "@/components/review-form";
 
 type Params = { id: string };
 
@@ -41,6 +42,7 @@ export default async function ProductPage({ params }: { params: Promise<Params> 
     .filter((p, i, arr) => arr.findIndex((x) => x.id === p.id) === i)
     .slice(0, 4);
 
+  const reviews = await getProductReviews(product.id);
   const outOfStock = product.stock <= 0;
 
   return (
@@ -167,35 +169,49 @@ export default async function ProductPage({ params }: { params: Promise<Params> 
 
       {/* Reviews */}
       <section className="mt-20">
-        <h2 className="font-display text-3xl font-semibold text-zinc-50">
-          What collectors say
-        </h2>
-        <div className="mt-6 grid gap-4 sm:grid-cols-2">
-          {product.reviews.map((r) => (
-            <div key={r.author + r.date} className="glass rounded-2xl p-5">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-ink-600 to-ink-800 text-sm font-bold text-gold-200">
-                    {r.author.charAt(0)}
-                  </span>
-                  <div>
-                    <div className="text-sm font-semibold text-zinc-100">{r.author}</div>
-                    <div className="text-[11px] text-zinc-500">{r.date}</div>
-                  </div>
-                </div>
-                <Stars rating={r.rating} size={13} />
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <h2 className="font-display text-3xl font-semibold text-zinc-50">
+            What collectors say
+          </h2>
+          <span className="text-sm text-zinc-500">
+            {reviews.length} review{reviews.length === 1 ? "" : "s"}
+          </span>
+        </div>
+        <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_320px]">
+          <div className="grid gap-4 sm:grid-cols-2">
+            {reviews.length === 0 ? (
+              <div className="glass rounded-2xl p-10 text-center text-sm text-zinc-500 sm:col-span-2">
+                No reviews yet — be the first to share your scent story.
               </div>
-              <p className="mt-3 text-sm leading-relaxed text-zinc-300">“{r.text}”</p>
-              {r.verified && (
-                <span className="mt-3 inline-flex items-center gap-1 text-[11px] text-emerald-300">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                    <path d="M20 6L9 17l-5-5" />
-                  </svg>
-                  Verified purchase
-                </span>
-              )}
-            </div>
-          ))}
+            ) : (
+              reviews.map((r) => (
+                <div key={r.id} className="glass rounded-2xl p-5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <span className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-ink-600 to-ink-800 text-sm font-bold text-gold-200">
+                        {r.author.charAt(0)}
+                      </span>
+                      <div>
+                        <div className="text-sm font-semibold text-zinc-100">{r.author}</div>
+                        <div className="text-[11px] text-zinc-500">{formatDate(r.createdAt)}</div>
+                      </div>
+                    </div>
+                    <Stars rating={r.rating} size={13} />
+                  </div>
+                  <p className="mt-3 text-sm leading-relaxed text-zinc-300">“{r.text}”</p>
+                  {r.verified && (
+                    <span className="mt-3 inline-flex items-center gap-1 text-[11px] text-emerald-300">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                        <path d="M20 6L9 17l-5-5" />
+                      </svg>
+                      Verified purchase
+                    </span>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+          <ReviewForm productId={product.id} />
         </div>
       </section>
 

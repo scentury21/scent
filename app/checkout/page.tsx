@@ -179,11 +179,12 @@ export default function CheckoutPage() {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      if (!user) return;
       const { data: inserted, error } = await supabase
         .from("orders")
         .insert({
-          user_id: user.id,
+          // Guest checkouts (no account) are saved too, so the admin sees every
+          // order and customers can track by order number + email.
+          user_id: user?.id ?? null,
           order_number: order.id,
           customer_name: order.customer.name,
           customer_email: order.customer.email,
@@ -252,6 +253,11 @@ export default function CheckoutPage() {
       body: JSON.stringify({ order }),
     }).catch(() => {});
     void fetch("/api/push-notify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ order }),
+    }).catch(() => {});
+    void fetch("/api/email-notify", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ order }),

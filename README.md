@@ -138,7 +138,20 @@ Every paid order also alerts you on Telegram — the message is sent by a
    proxies it to the edge function with the shared secret — the bot token and
    chat id live only in Supabase secrets.
 
-### 5 · Deploy to Vercel
+### 5 · Email (customer order emails via Resend)
+
+Customers get an order confirmation email and a status email when you update
+an order in the admin (e.g. "Your order is now shipped 🚚").
+
+1. Create an account at [resend.com](https://resend.com) → **API Keys** → copy
+   a key into `RESEND_API_KEY` (server-side only).
+2. Set `EMAIL_FROM` (defaults to `SCENTURY21 <onboarding@resend.dev>`, which
+   only delivers to your own address — add and verify a domain in Resend →
+   **Domains** to send to customers).
+3. Every paid order emails the customer via `app/api/email-notify`; the admin
+   panel emails status changes automatically.
+
+### 6 · Deploy to Vercel
 1. Push this repo to GitHub (below).
 2. On [vercel.com](https://vercel.com) → **New Project** → import the repo — it
    auto-detects Next.js. Zero config.

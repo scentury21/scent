@@ -346,3 +346,60 @@ alter table public.push_subscriptions enable row level security;
 drop policy if exists "push_subscriptions_own" on public.push_subscriptions;
 create policy "push_subscriptions_own" on public.push_subscriptions
   for all using (user_id = auth.uid() and public.is_admin());
+
+-- ---------- Guest orders & tracking ----------
+-- Guests (no account) can place orders (user_id stays null) and look their
+-- orders up later by order number + email via the RPCs below.
+drop policy if exists "orders_insert_guest" on public.orders;
+create policy "orders_insert_guest" on public.orders
+  for insert with check (auth.uid() is null and user_id is null);
+
+drop policy if exists "order_items_insert_guest" on public.order_items;
+create policy "order_items_insert_guest" on public.order_items
+  for insert with check (
+    auth.uid() is null and
+    exists (select 1 from public.orders o where o.id = order_id and o.user_id is null)
+  );
+
+-- Guest lookup: returns an order ONLY when BOTH the order number and the
+-- customer email match. security definer lets anon call it without exposing
+-- other orders.
+create or replace function public.get_order_for_customer(p_order_number text, p_email text)
+returns table (
+  id uuid, order_number text, customer_name text, customer_email text, customer_phone text,
+  status text, payment_status text, payment_reference text, currency text,
+  subtotal_kobo bigint, shipping_kobo bigint, total_kobo bigint,
+  delivery_country text, delivery_region text, delivery_city text, delivery_postal text,
+  delivery_address text, delivery_landmark text, delivery_notes text,
+  delivery_latitude double precision, delivery_longitude double precision,
+  created_at timestamptz
+)
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select o.id, o.order_number, o.customer_name, o.customer_email, o.customer_phone,
+    o.status, o.payment_status, o.payment_reference, o.currency,
+    o.subtotal_kobo, o.shipping_kobo, o.total_kobo,
+    o.delivery_country, o.delivery_region, o.delivery_city, o.delivery_postal,
+    o.delivery_address, o.delivery_landmark, o.delivery_notes,
+    o.delivery_latitude, o.delivery_longitude, o.created_at
+  from public.orders o
+  where o.order_number = p_order_number
+    and lower(o.customer_email) = lower(p_email)
+$$;
+
+create or replace function public.get_order_items_for_customer(p_order_id uuid, p_email text)
+returns table (name text, size text, price_kobo bigint, qty int)
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select i.name, i.size, i.price_kobo, i.qty
+  from public.order_items i
+  join public.orders o on o.id = i.order_id
+  where o.id = p_order_id
+    and lower(o.customer_email) = lower(p_email)
+$$;
