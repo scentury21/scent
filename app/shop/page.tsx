@@ -20,17 +20,8 @@ export default async function ShopPage({
   const products = await getActiveProducts();
 
   return (
-    <div className="force-dark relative overflow-hidden" style={{ backgroundColor: "#12110f" }}>
-      {/* Ambient gold glows */}
-      <div className="pointer-events-none absolute -top-40 left-1/2 h-80 w-[40rem] max-w-full -translate-x-1/2 rounded-full bg-gold-400/10 blur-[130px]" />
-      <div className="pointer-events-none absolute -bottom-32 -right-24 h-80 w-80 rounded-full bg-gold-500/5 blur-[120px]" />
-
-      {/* Smooth blend from the themed header into the dark section */}
-      <div className="shop-blend relative h-16 sm:h-20" />
-
-      <div className="relative mx-auto max-w-7xl px-4 pb-12 sm:px-6">
-        <ShopClient products={products} initialCategory={initialCategory} />
-      </div>
+    <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
+      <ShopClient products={products} initialCategory={initialCategory} />
     </div>
   );
 }

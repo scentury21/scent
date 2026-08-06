@@ -188,7 +188,7 @@ export default function ShopClient({
           ))}
         </div>
       ) : (
-        <div className="mt-6 rounded-2xl border border-gold-400/15 bg-[#1a1713] p-14 text-center">
+        <div className="glass mt-6 rounded-2xl p-14 text-center">
           <div className="text-5xl">🫙</div>
           <h3 className="mt-3 font-display text-2xl font-semibold text-zinc-100">
             Nothing matches that search

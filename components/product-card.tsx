@@ -55,13 +55,11 @@ export default function ProductCard({
   return (
     <Link
       href={`/product/${product.id}`}
-      className={`group relative flex h-full flex-col overflow-hidden rounded-2xl transition-all duration-300 ${
-        dark
-          ? "border border-white/[0.06] bg-[#231f1a] hover:-translate-y-1 hover:border-gold-400/40 hover:shadow-[0_18px_50px_-18px_rgba(212,169,74,0.4)]"
-          : "glass card-hover"
+      className={`group relative flex h-full flex-col overflow-hidden rounded-2xl ${
+        dark ? "premium-card" : "glass card-hover"
       }`}
     >
-      {/* Gold hairline along the top of the dark card */}
+      {/* Gold hairline along the top of the premium card */}
       {dark && (
         <span className="pointer-events-none absolute inset-x-0 top-0 z-20 h-px bg-gradient-to-r from-transparent via-gold-400/70 to-transparent" />
       )}

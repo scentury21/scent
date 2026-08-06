@@ -206,14 +206,18 @@ body {
   animation: shimmer 3.5s linear infinite;
 }
 
-/* Force a subtree to always resolve light-dark() colors as the dark theme.
-   Used by the shop section so it keeps the premium dark look even when the
-   rest of the site is in light mode. */
-.force-dark {
-  color-scheme: dark;
-}
 
-/* Blend the themed header (light or dark) into the fixed-dark shop section. */
-.shop-blend {
-  background: linear-gradient(to bottom, light-dark(#faf6ef, #08070f) 0%, #12110f 100%);
+
+/* Premium shop card — warm white in light mode, raised brown in dark mode,
+   always clearly separated from the page background. */
+.premium-card {
+  background: light-dark(#fffdf7, #26221c);
+  border: 1px solid light-dark(rgba(168, 126, 49, 0.3), rgba(255, 255, 255, 0.12));
+  box-shadow: 0 14px 36px -20px light-dark(rgba(87, 62, 18, 0.3), rgba(0, 0, 0, 0.7));
+  transition: transform 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+}
+.premium-card:hover {
+  transform: translateY(-4px);
+  border-color: light-dark(rgba(168, 126, 49, 0.55), rgba(226, 189, 102, 0.5));
+  box-shadow: 0 24px 55px -22px light-dark(rgba(168, 126, 49, 0.42), rgba(212, 169, 74, 0.38));
 }
