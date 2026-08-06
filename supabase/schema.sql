@@ -321,5 +321,28 @@ values
 ('noir-absolu','Noir Absolu','Dark cacao, oud and night vanilla','Spray Perfumes','Oriental','100ml',42000000,6,5,41,'Bestseller',true,array['#1e1b4b','#312e81','#6d28d9'],array['Bergamot','Davana','Rum'],array['Oud','Cacao','Turkish rose'],array['Black vanilla','Labdanum','Dark amber'],'Our darkest and most opulent creation. Bitter cacao and oud meet black vanilla and labdanum in a brooding, hypnotic oriental that feels almost alive.'),
 ('green-fig','Green Fig','Crisp green fig leaves and soft cedar','Spray Perfumes','Green','100ml',17600000,13,4.6,37,null,false,array['#4ade80','#16a34a','#14532d'],array['Fig','Galbanum','Lime'],array['Fig leaf','Vetiver','Green tea'],array['Cedarwood','Musk','Oakmoss'],'A stroll through a fig orchard at dawn. Green, dewy and quietly woody — fresh fig and galbanum over vetiver and cedar.'),
 ('rose-damascena','Rose Damascena','Two thousand petals, one bottle','Spray Perfumes','Rose','100ml',31000000,8,4.9,65,null,false,array['#fb7185','#e11d48','#881337'],array['Lychee','Raspberry','Pink pepper'],array['Damascena rose','Geranium','Peony'],array['Amberwood','White musk','Soft patchouli'],'Distilled from hand-picked Damascena roses at dawn. Lychee and raspberry brighten a lush, dewy rose heart over amberwood and white musk.'),
-('vanille-orchidee','Vanille Orchidée','Bourbon vanilla wrapped in orchid','Spray Perfumes','Gourmand','100ml',16800000,21,4.7,73,'New',false,array['#fde68a','#f59e0b','#b45309'],array['Mandarin','Pink pepper','Pear'],array['Orchid','Jasmine','Heliotrope'],array['Bourbon vanilla','Tonka','Benzoin'],'Gourmand, golden and comforting. Madagascan bourbon vanilla and orchid are warmed by tonka and benzoin — dessert, but make it couture.')
+('vanille-orchidee','Vanille Orchidée','Bourbon vanilla wrapped in orchid','Spray Perfumes','Gourmand','100ml',16800000,21,4.7,73,'New',false,array['#fde68a','#f59e0b','#b45309'],array['Mandarin','Pink pepper','Pear'],array['Orchid','Jasmine','Heliotrope'],array['Bourbon vanilla','Tonka','Benzoin'],  'Gourmand, golden and comforting. Madagascan bourbon vanilla and orchid are warmed by tonka and benzoin — dessert, but make it couture.')
 on conflict (slug) do nothing;
+
+-- ---------- Push notifications (admin browser subscriptions) ----------
+-- The admin enables push alerts in the dashboard; each browser that opts in
+-- stores one row here. app/api/push-notify reads them (with the service role
+-- key) and sends a Web Push when a new order is placed.
+create table if not exists public.push_subscriptions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles (id) on delete cascade,
+  endpoint text not null unique,
+  p256dh text not null,
+  auth text not null,
+  user_agent text not null default '',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.push_subscriptions enable row level security;
+
+-- Only admins manage their own subscriptions (subscribe / unsubscribe from
+-- the admin dashboard). Reads by the push sender go through the service role.
+drop policy if exists "push_subscriptions_own" on public.push_subscriptions;
+create policy "push_subscriptions_own" on public.push_subscriptions
+  for all using (user_id = auth.uid() and public.is_admin());
