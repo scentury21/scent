@@ -212,3 +212,8 @@ body {
 .force-dark {
   color-scheme: dark;
 }
+
+/* Blend the themed header (light or dark) into the fixed-dark shop section. */
+.shop-blend {
+  background: linear-gradient(to bottom, light-dark(#faf6ef, #08070f) 0%, #12110f 100%);
+}

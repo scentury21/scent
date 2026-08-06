@@ -55,13 +55,22 @@ export default function ProductCard({
   return (
     <Link
       href={`/product/${product.id}`}
-      className={`group card-hover relative flex flex-col overflow-hidden rounded-2xl ${
-        dark ? "border border-white/[0.06] bg-[#231f1a]" : "glass"
+      className={`group relative flex h-full flex-col overflow-hidden rounded-2xl transition-all duration-300 ${
+        dark
+          ? "border border-white/[0.06] bg-[#231f1a] hover:-translate-y-1 hover:border-gold-400/40 hover:shadow-[0_18px_50px_-18px_rgba(212,169,74,0.4)]"
+          : "glass card-hover"
       }`}
     >
+      {/* Gold hairline along the top of the dark card */}
+      {dark && (
+        <span className="pointer-events-none absolute inset-x-0 top-0 z-20 h-px bg-gradient-to-r from-transparent via-gold-400/70 to-transparent" />
+      )}
+
       {/* Art area */}
       <div
-        className="relative flex aspect-[4/3] items-center justify-center overflow-hidden"
+        className={`relative flex aspect-[4/3] items-center justify-center overflow-hidden ${
+          dark ? "ring-1 ring-inset ring-gold-400/10" : ""
+        }`}
         style={{
           background: `radial-gradient(120% 120% at 50% 0%, ${product.palette[0]}26 0%, transparent 55%), linear-gradient(180deg, rgba(255,255,255,0.03), rgba(0,0,0,0.2))`,
         }}
@@ -69,17 +78,17 @@ export default function ProductCard({
         {dark ? (
           <div className="absolute left-2.5 top-2.5 z-10 flex flex-wrap items-center gap-1.5">
             {product.stock > 0 ? (
-              <span className="rounded-full border border-emerald-400/20 bg-emerald-950/70 px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest text-emerald-300">
+              <span className="rounded-full border border-emerald-400/20 bg-emerald-950/70 px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest text-emerald-300 backdrop-blur">
                 In stock
               </span>
             ) : (
-              <span className="rounded-full border border-red-400/20 bg-red-950/70 px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest text-red-300">
+              <span className="rounded-full border border-red-400/20 bg-red-950/70 px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest text-red-300 backdrop-blur">
                 Out of stock
               </span>
             )}
             {product.tag && (
               <span
-                className={`rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest ${TAG_STYLES[product.tag]}`}
+                className={`rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest backdrop-blur ${TAG_STYLES[product.tag]}`}
               >
                 {product.tag}
               </span>
@@ -150,7 +159,7 @@ export default function ProductCard({
         <div className="mt-auto pt-2">
           <div className="flex items-end justify-between gap-2">
             <div
-              className={`font-display font-bold ${
+              className={`font-display font-bold tracking-tight ${
                 dark ? "text-lg text-gold-300 sm:text-xl" : "text-base text-gold-200 sm:text-lg"
               }`}
             >
@@ -163,7 +172,15 @@ export default function ProductCard({
               "Added ✓"
             ) : (
               <>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg
+                  className="transition-transform duration-300 group-hover:translate-x-0.5"
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
                   <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
                   <path d="M3 6h18" />
                   <path d="M16 10a4 4 0 0 1-8 0" />
