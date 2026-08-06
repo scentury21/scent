@@ -246,6 +246,11 @@ export default function CheckoutPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ order }),
     }).catch(() => {});
+    void fetch("/api/telegram-notify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ order }),
+    }).catch(() => {});
     router.push(`/checkout/success?id=${order.id}`);
   };
 

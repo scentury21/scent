@@ -7,8 +7,8 @@ v2* specification.
 > **Currently shipping:** a complete storefront and admin dashboard backed by
 > **Supabase** — products, orders and admins live in the database with Row Level
 > Security. The admin signs in with Google and only accounts granted the admin
-> role can access it. Paystack and WhatsApp integrations are ready — add your
-> keys to go live (see [Going live](#-going-live)).
+> role can access it. Paystack, WhatsApp and Telegram integrations are ready —
+> add your keys to go live (see [Going live](#-going-live)).
 
 ![stack](https://img.shields.io/badge/stack-Next.js%2016%20·%20TypeScript%20·%20Tailwind%20v4-blue)
 
@@ -70,6 +70,8 @@ app/
   api/
     verify-payment/    — server-side Paystack verification
     whatsapp-notify/   — WhatsApp Business Cloud API notification
+    telegram-notify/   — proxy to the Supabase Edge Function → Telegram
+supabase/functions/telegram-notify/ — Edge Function that sends the Telegram alert
 components/            — waves, header, footer, bottle, cards, admin UI
 lib/
   products.ts          — demo catalog (12 fragrances)
@@ -111,7 +113,32 @@ supabase/schema.sql    — full schema + RLS policies, ready to run
    number, customer, items, total, payment status and delivery details
    (incl. GPS) to your business number. Credentials stay server-side.
 
-### 4 · Deploy to Vercel
+### 4 · Telegram (order alerts via Supabase Edge Function)
+
+Every paid order also alerts you on Telegram — the message is sent by a
+**Supabase Edge Function** (your backend), never by the browser.
+
+1. **Create your bot** — chat with [@BotFather](https://t.me/BotFather) on
+   Telegram → `/newbot` → copy the **token**.
+2. **Add the bot to your group** — open the group you want alerts in, add the
+   bot as a member, then send any message in the group (so the bot sees it).
+3. **Get the group chat id** — call
+   `https://api.telegram.org/bot<TOKEN>/getUpdates` and find the `chat.id` for
+   your group (it's a negative number, e.g. `-1001234567890`).
+4. **Deploy the edge function** with the Supabase CLI:
+   ```bash
+   supabase login
+   supabase link --project-ref <your-project-ref>
+   supabase secrets set TELEGRAM_BOT_TOKEN=<token> TELEGRAM_CHAT_ID=<group-chat-id> TELEGRAM_NOTIFY_SECRET=<long-random-string>
+   supabase functions deploy telegram-notify
+   ```
+5. Add the **same** `TELEGRAM_NOTIFY_SECRET` to your Next.js environment
+   (`.env.local` locally, Vercel → Project → Environment Variables in
+   production). Each paid order POSTs to `app/api/telegram-notify`, which
+   proxies it to the edge function with the shared secret — the bot token and
+   chat id live only in Supabase secrets.
+
+### 5 · Deploy to Vercel
 1. Push this repo to GitHub (below).
 2. On [vercel.com](https://vercel.com) → **New Project** → import the repo — it
    auto-detects Next.js. Zero config.
