@@ -508,6 +508,15 @@ const TOOL_IMPLS: Record<string, (a: ToolArgs) => Promise<string>> = {
   get_stats: getStats as (a: ToolArgs) => Promise<string>,
 };
 
+// Write tools change the store (products, order statuses). These are owner-
+// only, so other members of a group can read but never mutate.
+const OWNER_ONLY_TOOLS = new Set([
+  "update_order_status",
+  "add_product",
+  "update_product",
+  "delete_product",
+]);
+
 const SYSTEM_PROMPT = `You are the SCENTURY21 store manager bot. The owner talks to you in plain language and you run tools against their store (Supabase).
 
 Rules:
@@ -516,13 +525,15 @@ Rules:
 - If a photo was attached to the conversation, the owner wants it as the product photo — pass the provided photo URL as image_url when adding/editing the product.
 - Prices in the store are in Nigerian naira (₦). Convert prices to price_naira.
 - If the request is ambiguous (e.g. several products match), ask ONE clarifying question instead of guessing.
-- Never invent data that a tool did not return.`;
+- Never invent data that a tool did not return.
+- If the system tells you an action was blocked because only the store owner can do it, politely explain that to the user and offer read-only alternatives — do not argue or try to bypass it.`;
 
 async function runAgent(
   chatId: number,
   userText: string,
   photoUrl: string | null,
-  draftJson: Record<string, unknown>
+  draftJson: Record<string, unknown>,
+  isOwner: boolean
 ): Promise<string> {
   const apiKey = Deno.env.get("GROQ_API_KEY") ?? "";
   if (!apiKey) return "⚠️ GROQ_API_KEY is not configured yet — set it with `supabase secrets set GROQ_API_KEY=<key>`.";
@@ -582,6 +593,16 @@ async function runAgent(
           args = JSON.parse(call.function?.arguments ?? "{}");
         } catch {
           /* keep {} */
+        }
+        // Owner gate for anything that mutates the store.
+        if (OWNER_ONLY_TOOLS.has(name) && !isOwner) {
+          messages.push({
+            role: "tool",
+            tool_call_id: call.id,
+            content:
+              "Blocked: this action changes the store and only the store owner may do it. Suggest the owner do it themselves, or answer the question read-only.",
+          });
+          continue;
         }
         const impl = TOOL_IMPLS[name];
         let result = `Unknown tool: ${name}`;
@@ -689,12 +710,23 @@ serve(async (req) => {
     return json({ ok: true, skipped: "no message" });
   }
 
-  // Admin-only. Fail CLOSED: without an allowlist the bot refuses to act.
+  // Allowlist: the group chat id (anyone may tag the bot for read-only) and
+  // the owner's personal chat id (full access). Fail CLOSED without an
+  // allowlist.
   const admins = (Deno.env.get("TELEGRAM_ADMIN_CHAT_ID") ?? "")
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
-  if (!admins.length || !admins.includes(String(fromId ?? chatId))) {
+  // (owner ids resolved separately in the handler)
+  const ownerIds = (Deno.env.get("TELEGRAM_OWNER_CHAT_ID") ??
+    Deno.env.get("TELEGRAM_CHAT_ID") ??
+    "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const isOwner = ownerIds.includes(String(fromId ?? chatId));
+  const isAdmin = admins.includes(String(chatId)) || admins.includes(String(fromId));
+  if (!admins.length || !isAdmin) {
     await tg("sendMessage", {
       chat_id: chatId,
       text: "🔒 This bot is for the SCENTURY21 store owner only.",
@@ -750,7 +782,7 @@ serve(async (req) => {
   }
 
   const draft = await getDraft(chatId);
-  const reply = await runAgent(chatId, prompt, photoUrl, draft);
+  const reply = await runAgent(chatId, prompt, photoUrl, draft, isOwner);
 
   // If the agent added a product successfully, clear any draft + photo refs.
   if (reply.startsWith("✅ Added")) {
