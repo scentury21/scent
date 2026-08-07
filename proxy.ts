@@ -15,6 +15,9 @@ const PUBLIC_PATHS = [
   "/checkout",
   "/track",
   "/wishlist",
+  // Server-rendered report pages used by the Telegram bot screenshots —
+  // they are gated by the REPORT_KEY query param inside the page itself.
+  "/report",
 ];
 
 export async function proxy(request: NextRequest) {

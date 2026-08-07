@@ -731,16 +731,23 @@ async function screenshotPage(
   // Cache-buster so Microlink never serves a stale screenshot.
   const pageUrl =
     `${siteUrl}/report/${section}?key=${encodeURIComponent(reportKey)}&_=${Date.now()}`;
+  // Keep the param set minimal — Microlink's free tier EFATALs when
+  // encoding=base64 is combined with device/waitUntil. Instead we take the
+  // returned PNG url and download it.
   const shot = await fetch(
-    `https://api.microlink.io/?url=${encodeURIComponent(pageUrl)}&screenshot=true&device=desktop&waitUntil=networkidle2&encoding=base64&meta=false&pdf=false`
+    `https://api.microlink.io/?url=${encodeURIComponent(pageUrl)}&screenshot=true&device=desktop&waitUntil=networkidle2`
   ).catch(() => null);
   if (!shot) return "⚠️ Could not reach the screenshot service — try again in a moment.";
   const data = await shot.json().catch(() => null);
-  const b64 = data?.data?.screenshot?.data;
-  if (typeof b64 !== "string" || !b64) {
+  const imgUrl = data?.data?.screenshot?.url;
+  if (typeof imgUrl !== "string" || !imgUrl) {
     return `⚠️ Screenshot failed (${data?.data?.status ?? shot.status}) — the report page may not be deployed, or REPORT_KEY doesn't match Vercel's.`;
   }
-  const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+  const imgRes = await fetch(imgUrl).catch(() => null);
+  if (!imgRes || !imgRes.ok) {
+    return "⚠️ Screenshot rendered but the image couldn't be downloaded — try again.";
+  }
+  const bytes = new Uint8Array(await imgRes.arrayBuffer());
   const token = Deno.env.get("TELEGRAM_BOT_TOKEN") ?? "";
   const form = new FormData();
   form.append("chat_id", String(ctx.chatId));
@@ -1371,6 +1378,35 @@ serve(async (req) => {
       ].join("\n"),
     });
     return json({ ok: true });
+  }
+
+  // Direct tool shortcuts — CSV exports and page screenshots run without
+  // the LLM, so they always work even if the model is misbehaving.
+  const lower = (text ?? "").toLowerCase();
+  const negated = /(no |not |don'?t |dont )/.test(lower);
+  if (
+    !negated &&
+    /(csv|excel|spreadsheet|export.{0,30}orders|orders.{0,30}(file|excel))/.test(lower)
+  ) {
+    const reply = await exportOrdersCsv({ chatId });
+    await tg("sendMessage", { chat_id: chatId, text: reply });
+    return json({ ok: true });
+  }
+  if (/(screenshot|screen ?shot|screen ?shoot|shoot|capture|photo of)/.test(lower)) {
+    const secMatch = lower.match(/(orders?|products?|customers?|stats?|statistics|dashboard)/);
+    if (secMatch) {
+      const raw = secMatch[1];
+      const sec = raw.startsWith("order")
+        ? "orders"
+        : raw.startsWith("product")
+          ? "products"
+          : raw.startsWith("customer")
+            ? "customers"
+            : "stats";
+      const reply = await screenshotPage({ section: sec }, { chatId });
+      await tg("sendMessage", { chat_id: chatId, text: reply });
+      return json({ ok: true });
+    }
   }
 
   // Photo attached → upload now, stash the URL, then let the agent continue.
