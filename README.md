@@ -295,3 +295,17 @@ Bot secrets (Supabase):
   supabase secrets set SITE_URL=https://your-domain.vercel.app REPORT_KEY=<key>
 
 Usage in Telegram: "Screenshot the orders page" · "Export orders as CSV"
+
+### 13 · Provider status update (verified 2026-08)
+
+Live-tested on this store's accounts. The bot tries each provider's model
+list in order, then falls back to the next provider:
+
+| Provider | Model(s) | Status |
+|---|---|---|
+| Groq | llama-3.3-70b-versatile → llama-3.1-8b-instant | active |
+| Gemini | gemini-2.0-flash → gemini-2.5-flash | active (free quota resets; key was valid, hit 429) |
+| OpenRouter | google/gemma-4-31b-it:free → openai/gpt-oss-20b:free | active — old llama-3.3:free slug is DEAD (404) |
+| NVIDIA | meta/llama-3.3-70b-instruct → nemotron-70b → gemma-4-31b | active (needs credits) |
+| Cerebras | — | REMOVED — account says payment required (402) |
+| HuggingFace | — | REMOVED — token lacks Inference Providers permission |

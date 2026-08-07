@@ -25,17 +25,18 @@ const TELEGRAM_API = "https://api.telegram.org";
 // The bot round-robins through providers per message and automatically
 // falls back to the next one when a provider is rate-limited (429) or
 // down (5xx). Enable a provider simply by setting its API key secret:
-//   Custom:     LLM_BASE_URL + LLM_MODEL + LLM_API_KEY (or GROQ_API_KEY)
-//   Gemini:     GEMINI_API_KEY
-//   OpenRouter: OPENROUTER_API_KEY
-//   NVIDIA:     NVIDIA_API_KEY
-//   Cerebras:   CEREBRAS_API_KEY
-//   HuggingFace: HUGGINGFACE_API_KEY
+//   Groq/custom: LLM_BASE_URL + LLM_MODEL + LLM_API_KEY (or GROQ_API_KEY)
+//   Gemini:      GEMINI_API_KEY
+//   OpenRouter:  OPENROUTER_API_KEY
+//   NVIDIA:      NVIDIA_API_KEY
+// (Cerebras + HuggingFace were removed — those accounts have no free access.)
+// Each provider lists fallback models: if a model 404s or rate-limits, the
+// bot tries the next model, then the next provider.
 // -------------------------------------------------------------------
 type LLMProvider = {
   name: string;
   baseUrl: string;
-  model: string;
+  models: string[]; // tried in order, then the next provider
   apiKey: string;
 };
 
@@ -44,47 +45,45 @@ function buildProviders(): LLMProvider[] {
   const push = (
     name: string,
     baseUrl: string,
-    model: string,
+    models: string[],
     apiKey: string | undefined
   ) => {
-    if (apiKey) list.push({ name, baseUrl, model, apiKey });
+    if (apiKey) list.push({ name, baseUrl, models, apiKey });
   };
-  // Custom / Groq default (keeps working with the existing GROQ_API_KEY).
+  const isCustom = Boolean(Deno.env.get("LLM_BASE_URL"));
+  // Groq (or a custom single-provider override). Verified 2026-08.
   push(
-    "custom",
+    isCustom ? "custom" : "groq",
     Deno.env.get("LLM_BASE_URL") ?? "https://api.groq.com/openai/v1",
-    Deno.env.get("LLM_MODEL") ?? "llama-3.3-70b-versatile",
+    [
+      Deno.env.get("LLM_MODEL") ?? "llama-3.3-70b-versatile",
+      "llama-3.1-8b-instant",
+    ],
     Deno.env.get("LLM_API_KEY") ?? Deno.env.get("GROQ_API_KEY")
   );
   push(
     "gemini",
     "https://generativelanguage.googleapis.com/v1beta/openai",
-    "gemini-2.0-flash",
+    ["gemini-2.0-flash", "gemini-2.5-flash"],
     Deno.env.get("GEMINI_API_KEY")
   );
+  // Verified working free models on this account (2026-08):
+  // the old llama-3.3-70b-instruct:free slug is gone (404).
   push(
     "openrouter",
     "https://openrouter.ai/api/v1",
-    "meta-llama/llama-3.3-70b-instruct:free",
+    ["google/gemma-4-31b-it:free", "openai/gpt-oss-20b:free"],
     Deno.env.get("OPENROUTER_API_KEY")
   );
   push(
     "nvidia",
     "https://integrate.api.nvidia.com/v1",
-    "meta/llama-3.3-70b-instruct",
+    [
+      "meta/llama-3.3-70b-instruct",
+      "nvidia/llama-3.1-nemotron-70b-instruct",
+      "google/gemma-4-31b-it",
+    ],
     Deno.env.get("NVIDIA_API_KEY")
-  );
-  push(
-    "cerebras",
-    "https://api.cerebras.ai/v1",
-    "llama-3.3-70b",
-    Deno.env.get("CEREBRAS_API_KEY")
-  );
-  push(
-    "huggingface",
-    "https://router.huggingface.co/v1",
-    "meta-llama/Llama-3.3-70B-Instruct",
-    Deno.env.get("HUGGINGFACE_API_KEY")
   );
   return list;
 }
@@ -1134,39 +1133,41 @@ async function runAgent(
   let current = PROVIDERS[rotationIndex++ % PROVIDERS.length];
 
   for (let round = 0; round < MAX_AGENT_ROUNDS; round++) {
-    // Try the current provider first; on 429 / 5xx (or any failure) fall
-    // through to the next provider in rotation until one answers.
+    // Try the current provider first; if a model 404s or rate-limits, try
+    // that provider's next model, then fall through to the next provider.
     let res: Response | null = null;
     let lastErr = "";
     for (let a = 0; a < PROVIDERS.length; a++) {
       const provider =
         PROVIDERS[(PROVIDERS.indexOf(current) + a) % PROVIDERS.length];
-      res = await fetch(
-        `${provider.baseUrl.replace(/\/$/, "")}/chat/completions`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${provider.apiKey}`,
-          },
-          body: JSON.stringify({
-            model: provider.model,
-            messages,
-            tools: TOOLS,
-            tool_choice: "auto",
-            temperature: 0.4,
-          }),
+      for (const model of provider.models) {
+        res = await fetch(
+          `${provider.baseUrl.replace(/\/$/, "")}/chat/completions`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${provider.apiKey}`,
+            },
+            body: JSON.stringify({
+              model,
+              messages,
+              tools: TOOLS,
+              tool_choice: "auto",
+              temperature: 0.4,
+            }),
+          }
+        );
+        if (res.ok) {
+          current = provider; // stick with the provider that works
+          lastProviderName = `${provider.name} (${model})`;
+          break;
         }
-      );
-      if (res.ok) {
-        current = provider; // stick with the provider that works
-        lastProviderName = provider.name;
-        break;
+        const status = res.status;
+        const body = await res.text().catch(() => "");
+        lastErr = `${provider.name}/${model} (${status}): ${body.slice(0, 120)}`;
       }
-      const status = res.status;
-      const body = await res.text().catch(() => "");
-      lastErr = `${provider.name} (${status}): ${body.slice(0, 120)}`;
-      // Any failure (429 / 5xx / bad key) → try the next provider.
+      if (res?.ok) break;
     }
     if (!res || !res.ok) {
       return `⚠️ All ${PROVIDERS.length} LLM providers failed — last error: ${lastErr}. Try again in a minute.`;
