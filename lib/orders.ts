@@ -145,7 +145,13 @@ export async function lookupGuestOrder(
   return mapOrderRow(row, (itemRows ?? []) as ItemRow[]);
 }
 
-/** A single order by its order number (e.g. "SC-XXXX"), scoped to the user. */
+/**
+ * A single order by its order number (e.g. "SC-XXXX"), scoped to the
+ * signed-in user. Defense-in-depth: even if the table's RLS policies are not
+ * (yet) applied in the live project, a customer can never read another
+ * customer's order by guessing an order number. Returns null for guests —
+ * guest tracking happens via lookupGuestOrder (order number + email).
+ */
 export async function fetchOrderByNumber(orderNumber: string): Promise<Order | null> {
   const supabase = createClient();
   const {
@@ -157,6 +163,7 @@ export async function fetchOrderByNumber(orderNumber: string): Promise<Order | n
     .from("orders")
     .select("*")
     .eq("order_number", orderNumber)
+    .eq("user_id", user.id)
     .limit(1);
 
   const row = (rows as OrderRow[] | null)?.[0];

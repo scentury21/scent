@@ -13,6 +13,10 @@ function safeRedirect(target: string | null, fallback = "/shop"): string {
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
+  // Email confirmation / magic-link clicks arrive with a token_hash, not a
+  // code — verify those directly (covers the signup confirmation email).
+  const tokenHash = searchParams.get("token_hash");
+  const tokenType = searchParams.get("type");
 
   // Google / Supabase surface auth failures through these params.
   const error = searchParams.get("error");
@@ -38,6 +42,22 @@ export async function GET(request: Request) {
       errorDescription ||
         "Google sign-in was cancelled or failed. Please try again."
     );
+  }
+
+  if (tokenHash) {
+    const supabase = await createClient();
+    const { error: tokenError } = await supabase.auth.verifyOtp({
+      token_hash: tokenHash,
+      type: (tokenType as "signup" | "email" | "recovery") || "signup",
+    });
+    if (tokenError) {
+      return toLogin(
+        `Could not confirm your email (${tokenError.message}). Please try the 6-digit code on the OTP page instead.`
+      );
+    }
+    const res = NextResponse.redirect(new URL(next, origin));
+    res.cookies.delete("scentury-next");
+    return res;
   }
 
   if (!code) {

@@ -62,31 +62,23 @@ export default function AdminOrdersPage() {
   }, []);
 
   async function handleStatus(id: string, status: string) {
-    const supabase = createClient();
-    const { error } = await supabase.from("orders").update({ status }).eq("id", id);
-    if (error) {
-      setError(error.message);
+    /* Updates run through a server-side route with the service role key, so
+       they persist regardless of RLS policy state, and the customer is
+       emailed about the new status. */
+    const res = await fetch("/api/admin/orders/status", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ orderId: id, status }),
+    });
+    const data = (await res.json().catch(() => ({}))) as {
+      ok?: boolean;
+      error?: string;
+    };
+    if (!res.ok || !data.ok) {
+      setError(data.error ?? "Could not update status — try again.");
       return;
     }
     setOrders((prev) => prev.map((o) => (o.id === id ? { ...o, status } : o)));
-    /* Email the customer about their new status (fire-and-forget). */
-    const row = orders.find((o) => o.id === id);
-    if (row) {
-      void fetch("/api/email-notify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          order: {
-            order_number: row.order_number,
-            customer_name: row.customer_name,
-            customer_email: row.customer_email,
-            total_kobo: row.total_kobo,
-            currency: "NGN",
-          },
-          status,
-        }),
-      }).catch(() => {});
-    }
   }
 
   const itemsFor = (id: string) => items.filter((i) => i.order_id === id);

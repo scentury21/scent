@@ -180,3 +180,44 @@ git push -u origin main
 ## 🧾 License
 
 MIT-style — free to ship. Scentury21 plan & copy © Scentury21.
+
+### 7 · Email signup OTP (Supabase + Brevo custom SMTP)
+
+Signup uses Supabase's email OTP (6-digit code) and a clickable confirmation
+link. If you are NOT receiving the code:
+
+1. Verify the sender in Brevo — Supabase silently drops emails when the sender
+   address is not a verified sender in Brevo. Add it under Brevo → Senders &
+   IPs → Senders, and use that exact address in the Supabase SMTP sender field.
+2. Check the SMTP settings in Supabase → Authentication → SMTP:
+   - Host: smtp-relay.brevo.com · Port: 587 · TLS on
+   - User: your Brevo SMTP login (NOT the API key)
+   - Pass: your Brevo SMTP master key (NOT the API key)
+3. Add the redirect URL in Supabase → Authentication → URL Configuration — the
+   site URL (e.g. https://your-app.vercel.app) and
+   https://your-app.vercel.app/auth/callback in Redirect URLs.
+4. Check spam/promotions. The OTP page also shows these hints to customers.
+
+### 8 · Telegram admin AI agent (Groq)
+
+Talk to your store in plain English on Telegram: view & update orders, change
+customer tracking status, add products with photos, edit/delete products, and
+check stats. Backed by Groq's LLM with tool calling.
+
+1. Get a free key at https://console.groq.com → API Keys.
+2. Get your chat id (TELEGRAM_CHAT_ID already used for order alerts works).
+3. Set secrets + deploy:
+   supabase secrets set TELEGRAM_BOT_TOKEN=<token> TELEGRAM_ADMIN_CHAT_ID=<your-chat-id> GROQ_API_KEY=<groq-key> TELEGRAM_AGENT_SECRET=<long-random-string>
+   supabase functions deploy telegram-agent
+4. Point Telegram at the function (run once, anytime after deploy):
+   curl "https://api.telegram.org/bot<TOKEN>/setWebhook?url=https://<ref>.supabase.co/functions/v1/telegram-agent&secret_token=<TELEGRAM_AGENT_SECRET>"
+5. Chat with your bot: "Show my recent orders", "Set SC-XXXX to shipped",
+   "Add Amber Oud for 385000, 100ml, stock 10" (send a photo first to add it
+   as the product picture), "Stats", "Delete the product 'Old Scent'".
+
+Only chat ids listed in TELEGRAM_ADMIN_CHAT_ID can use the bot.
+
+> Schema: after pulling this update, run the WHOLE supabase/schema.sql in the
+> Supabase SQL editor — it adds the bot_drafts table, the guest-order RPCs and
+> the RLS policies that keep each customer's tracking page scoped to their own
+> orders.

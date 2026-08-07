@@ -403,3 +403,15 @@ as $$
   where o.id = p_order_id
     and lower(o.customer_email) = lower(p_email)
 $$;
+
+-- ---------- Telegram bot (admin AI agent) drafts ----------
+-- Holds in-flight product-add wizard state (photo file id, partial details)
+-- per admin chat, so the bot survives cold starts between messages.
+create table if not exists public.bot_drafts (
+  chat_id bigint primary key,
+  data jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now()
+);
+alter table public.bot_drafts enable row level security;
+-- Only the service role (used by the telegram-agent edge function) touches
+-- this table — no anon/authenticated policies are created on purpose.

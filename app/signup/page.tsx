@@ -68,11 +68,14 @@ function SignupForm() {
     setLoading(true);
 
     const supabase = createClient();
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
         data: { name },
+        // The confirmation link lands back on THIS app (not a Supabase
+        // placeholder), so clicking it in the email confirms the account.
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
       },
     });
 
@@ -83,6 +86,14 @@ function SignupForm() {
       setError(
         error.message || "Something went wrong. Check the browser console for details."
       );
+      return;
+    }
+
+    // If the project has "Confirm email" turned OFF, signUp returns a session
+    // immediately — no OTP needed, go straight in.
+    if (data.session) {
+      router.push(redirectTo);
+      router.refresh();
       return;
     }
 
