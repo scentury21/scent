@@ -688,27 +688,71 @@ async function exportOrdersCsv(ctx: { chatId: number }) {
     ),
   ].join("\n");
 
-  // Upload CSV to storage, then send the document by URL (Telegram fetches it).
+  // Send the CSV bytes straight to Telegram (multipart upload) — no storage
+  // bucket or public URL involved, so it always delivers.
   const name = `orders-${Date.now()}.csv`;
-  const up = await fetch(`${SB_URL}/storage/v1/object/product-images/${name}`, {
+  const token = Deno.env.get("TELEGRAM_BOT_TOKEN") ?? "";
+  const form = new FormData();
+  form.append("chat_id", String(ctx.chatId));
+  form.append("document", new Blob([csv], { type: "text/csv" }), name);
+  form.append("caption", `📄 ${orders.length} orders — Scentury21 export`);
+  const up = await fetch(`${TELEGRAM_API}/bot${token}/sendDocument`, {
     method: "POST",
-    headers: {
-      apikey: SB_KEY,
-      Authorization: `Bearer ${SB_KEY}`,
-      "Content-Type": "text/csv",
-      "x-upsert": "true",
-    },
-    body: csv,
+    body: form,
   });
-  if (!up.ok) return `⚠️ Could not build the CSV (storage ${up.status}).`;
-  const fileUrl = `${SB_URL}/storage/v1/object/public/product-images/${name}`;
-  const sent = await tg("sendDocument", {
-    chat_id: ctx.chatId,
-    document: fileUrl,
-    caption: `📄 ${orders.length} orders — Scentury21 export`,
-  });
+  const sent = await up.json().catch(() => ({}));
   if (!sent?.ok) return `⚠️ CSV is ready but Telegram couldn't send it: ${sent?.description ?? "error"}`;
   return `📄 Sent you a CSV with ${orders.length} orders.`;
+}
+
+/* ------------------------------------------------------------------ */
+/* Screenshot reports — server-rendered /report pages via Microlink    */
+/* ------------------------------------------------------------------ */
+
+const REPORT_SECTIONS: Record<string, { title: string }> = {
+  orders: { title: "Orders" },
+  products: { title: "Products" },
+  customers: { title: "Customers" },
+  stats: { title: "Stats" },
+};
+
+async function screenshotPage(
+  args: ToolArgs,
+  ctx: { chatId: number }
+): Promise<string> {
+  const section = String(args.section ?? "").toLowerCase();
+  if (!REPORT_SECTIONS[section]) {
+    return "Please tell me which page to screenshot: orders, products, customers, or stats.";
+  }
+  const siteUrl = (Deno.env.get("SITE_URL") ?? "").replace(/\/$/, "");
+  const reportKey = Deno.env.get("REPORT_KEY") ?? "";
+  if (!siteUrl || !reportKey) {
+    return "⚠️ Screenshots aren't wired up yet — set `supabase secrets set SITE_URL=... REPORT_KEY=...` and add REPORT_KEY to your Vercel env.";
+  }
+  const pageUrl =
+    `${siteUrl}/report/${section}?key=${encodeURIComponent(reportKey)}`;
+  const shot = await fetch(
+    `https://api.microlink.io/?url=${encodeURIComponent(pageUrl)}&screenshot=true&device=desktop&waitUntil=networkidle2&encoding=base64&meta=false&pdf=false`
+  ).catch(() => null);
+  if (!shot) return "⚠️ Could not reach the screenshot service — try again in a moment.";
+  const data = await shot.json().catch(() => null);
+  const b64 = data?.data?.screenshot?.data;
+  if (typeof b64 !== "string" || !b64) {
+    return `⚠️ Screenshot failed (${data?.data?.status ?? shot.status}) — the report page may not be deployed, or REPORT_KEY doesn't match Vercel's.`;
+  }
+  const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+  const token = Deno.env.get("TELEGRAM_BOT_TOKEN") ?? "";
+  const form = new FormData();
+  form.append("chat_id", String(ctx.chatId));
+  form.append("photo", new Blob([bytes], { type: "image/png" }), `${section}.png`);
+  form.append("caption", `📸 ${REPORT_SECTIONS[section].title} — Scentury21`);
+  const sent = await fetch(`${TELEGRAM_API}/bot${token}/sendPhoto`, {
+    method: "POST",
+    body: form,
+  });
+  const res = await sent.json().catch(() => ({}));
+  if (!res?.ok) return `⚠️ Screenshot ready but Telegram couldn't send it: ${res?.description ?? "error"}`;
+  return `📸 Sent you the ${REPORT_SECTIONS[section].title.toLowerCase()} page.`;
 }
 
 /* ------------------------------------------------------------------ */
@@ -980,6 +1024,25 @@ const TOOLS = [
       parameters: { type: "object", properties: {} },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "screenshot_page",
+      description:
+        "Take a screenshot of a store admin page (orders, products, customers, or stats) and send the image to the chat. Read-only.",
+      parameters: {
+        type: "object",
+        properties: {
+          section: {
+            type: "string",
+            enum: ["orders", "products", "customers", "stats"],
+            description: "Which admin page to screenshot.",
+          },
+        },
+        required: ["section"],
+      },
+    },
+  },
 ];
 
 type ToolArgs = Record<string, unknown>;
@@ -1004,6 +1067,7 @@ const TOOL_IMPLS: Record<string, (a: ToolArgs, ctx: ToolCtx) => Promise<string>>
   site_settings: siteSettings as (a: ToolArgs, ctx: ToolCtx) => Promise<string>,
   update_site_setting: updateSiteSetting as (a: ToolArgs, ctx: ToolCtx) => Promise<string>,
   export_orders_csv: exportOrdersCsv as (a: ToolArgs, ctx: ToolCtx) => Promise<string>,
+  screenshot_page: screenshotPage as (a: ToolArgs, ctx: ToolCtx) => Promise<string>,
 };
 
 // Write tools change the store (products, order statuses). These are owner-
@@ -1028,7 +1092,7 @@ Rules:
 - If the request is ambiguous (e.g. several products match), ask ONE clarifying question instead of guessing.
 - Never invent data that a tool did not return.
 - If the system tells you an action was blocked because only the store owner can do it, politely explain that to the user and offer read-only alternatives — do not argue or try to bypass it.
-- You can also: summarize what needs attention, mark payments paid/failed/refunded, look up customers, report revenue by day/week/month, list best sellers, restock products, show top customers, most-wishlisted products, read/update site settings, and export orders as CSV (the CSV tool sends the file itself).`;
+- You can also: summarize what needs attention, mark payments paid/failed/refunded, look up customers, report revenue by day/week/month, list best sellers, restock products, show top customers, most-wishlisted products, read/update site settings, and export orders as CSV (the CSV tool sends the file itself). You can also screenshot any admin page as an image (orders, products, customers, stats) with screenshot_page.`;
 
 async function runAgent(
   chatId: number,
@@ -1287,6 +1351,7 @@ serve(async (req) => {
         "• “Set order SC-XXXX to shipped” / “Mark SC-XXXX as paid”",
         "• “What needs attention?”",
         "• “Export orders as CSV”",
+        "📸 “Screenshot the orders page” (also products / customers / stats)",
         "🛍️ Products",
         "• “Add a perfume called Amber Oud for ₦385,000, 100ml, stock 10”",
         "• “Send me a photo + details to add a product with a picture”",
