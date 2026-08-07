@@ -58,9 +58,13 @@ export default function AdminProductsPage() {
 
   const load = useCallback(async () => {
     const supabase = createClient();
+    // Only live products — matches the shop, so deleted (inactive) items don't
+    // linger in the admin list. Deletes are hard deletes in the admin AND the
+    // Telegram bot, but this also hides any legacy soft-deleted products.
     const { data, error } = await supabase
       .from("products")
       .select("*")
+      .eq("active", true)
       .order("created_at", { ascending: false });
     if (error) setError(error.message);
     setProducts((data ?? []).map((row) => mapProductRow(row as ProductRow)));

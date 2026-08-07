@@ -4,3 +4,11 @@
 # the x-telegram-bot-api-secret-token check (fail-closed), not by the gateway.
 [functions.telegram-agent]
 verify_jwt = false
+
+# Daily 8am store report pushed to the owner's Telegram chat.
+# Note: this schedule uses the legacy pg_cron approach. After deploying, verify
+# the cron job exists: Dashboard → Database → Cron (or run
+# `select * from cron.job;` in the SQL editor). If not, add it manually:
+#   select cron.schedule('telegram-daily-report', '0 8 * * *', $$select net.http_post(url:='https://<ref>.supabase.co/functions/v1/telegram-daily-report', headers:='{"authorization":"Bearer <TELEGRAM_AGENT_SECRET>"}'::jsonb)$$);
+[functions.telegram-daily-report]
+verify_jwt = false

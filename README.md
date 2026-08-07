@@ -221,3 +221,19 @@ Only chat ids listed in TELEGRAM_ADMIN_CHAT_ID can use the bot.
 > Supabase SQL editor — it adds the bot_drafts table, the guest-order RPCs and
 > the RLS policies that keep each customer's tracking page scoped to their own
 > orders.
+
+### 9 · Telegram bot — full command list
+
+The AI bot can now do (owner-only writes, group = read-only):
+
+- Orders: list/get, change status, mark paid/failed/refunded, needs-attention
+  summary, CSV export (sends the file to chat).
+- Products: add (with photo), edit, delete (permanent), quick restock,
+  best sellers, most-wishlisted.
+- Money: revenue today/week/month, top customers, stats.
+- Settings: view/update site settings (WhatsApp number, socials, etc.).
+- Daily 8am report: orders + revenue + low stock (telegram-daily-report).
+
+Update the daily-report cron if your schedule differs:
+  select cron.schedule('telegram-daily-report','0 8 * * *',
+    $$select net.http_post(url:='https://<ref>.supabase.co/functions/v1/telegram-daily-report',headers:='{"authorization":"Bearer <TELEGRAM_AGENT_SECRET>"}'::jsonb)$$);

@@ -102,6 +102,7 @@ async function uploadPhoto(fileId: string): Promise<string> {
 /* ------------------------------------------------------------------ */
 
 const STATUSES = ["pending", "processing", "shipped", "delivered", "cancelled"];
+const PAY_STATUSES = ["pending", "paid", "failed", "refunded"];
 
 function slugify(s: string): string {
   return s
@@ -320,12 +321,13 @@ async function deleteProduct(args: { query: string }) {
   );
   const p = rows?.[0];
   if (!p) return `No product found matching "${args.query}".`;
+  // HARD delete — matches the admin panel's Delete button, so the product
+  // disappears from BOTH the shop and the admin products page.
   await sb(`/rest/v1/products?id=eq.${p.id}`, {
-    method: "PATCH",
-    body: JSON.stringify({ active: false }),
-    headers: { "Content-Type": "application/json", Prefer: "return=minimal" },
+    method: "DELETE",
+    headers: { Prefer: "return=minimal" },
   });
-  return `🚫 "${p.name}" is now hidden from the shop (soft delete — it stays in the database).`;
+  return `🗑️ Deleted "${p.name}" permanently (removed from the shop and admin).`;
 }
 
 async function getStats() {
@@ -354,6 +356,284 @@ async function getStats() {
   ]
     .filter(Boolean)
     .join("\n");
+}
+
+/* ------------------------------------------------------------------ */
+/* New tools: attention, payments, customers, revenue, CSV, restock    */
+/* ------------------------------------------------------------------ */
+
+async function needsAttention() {
+  const orders = (await sb(
+    "/rest/v1/orders?select=order_number,customer_name,customer_phone,status,payment_status,created_at,total_kobo&order=created_at.desc&limit=500"
+  )) as Record<string, unknown>[];
+  const products = (await sb(
+    "/rest/v1/products?select=name,stock,active"
+  )) as Record<string, unknown>[];
+
+  const now = Date.now();
+  const DAY = 24 * 60 * 60 * 1000;
+  const unpaid = orders.filter((o) => o.payment_status !== "paid");
+  const stale = orders.filter(
+    (o) => o.status === "pending" && now - new Date(String(o.created_at)).getTime() > 2 * DAY
+  );
+  const low = products.filter((p) => p.active !== false && Number(p.stock) <= 5);
+
+  if (!unpaid.length && !stale.length && !low.length) {
+    return "🎉 All clear! No unpaid orders, no stale pending orders, no low stock.";
+  }
+  return [
+    "⚠️ Needs attention:",
+    unpaid.length ? `💳 Unpaid (${unpaid.length}): ${unpaid.map((o) => o.order_number).join(", ")}` : "",
+    stale.length ? `⏳ Pending >48h (${stale.length}): ${stale.map((o) => o.order_number).join(", ")}` : "",
+    low.length ? `📉 Low stock ≤5: ${low.map((p) => `${p.name} (${p.stock})`).join(", ")}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+async function updatePaymentStatus(args: { order_number: string; status: string }) {
+  const status = String(args.status ?? "").toLowerCase();
+  if (!PAY_STATUSES.includes(status)) {
+    return `Invalid payment status. Use one of: ${PAY_STATUSES.join(", ")}.`;
+  }
+  const rows = await sb(
+    `/rest/v1/orders?select=id&order_number=eq.${encodeURIComponent(args.order_number)}`
+  );
+  const order = rows?.[0];
+  if (!order) return `No order found for ${args.order_number}.`;
+  await sb(`/rest/v1/orders?id=eq.${order.id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ payment_status: status, updated_at: new Date().toISOString() }),
+    headers: { "Content-Type": "application/json", Prefer: "return=minimal" },
+  });
+  return `✅ Order ${args.order_number}: payment → ${status}.`;
+}
+
+async function findCustomer(args: { query: string }) {
+  const q = String(args.query ?? "").trim();
+  if (!q) return "Tell me the customer's email or phone to look them up.";
+  const rows = (await sb(
+    `/rest/v1/orders?select=order_number,customer_name,customer_email,customer_phone,total_kobo,payment_status,status,created_at&or=(customer_email.ilike.*${encodeURIComponent(q)}*,customer_phone.ilike.*${encodeURIComponent(q)}*,customer_name.ilike.*${encodeURIComponent(q)}*)&order=created_at.desc&limit=100`
+  )) as Record<string, unknown>[];
+  if (!rows.length) return `No customer found matching "${q}".`;
+  const paid = rows.filter((o) => o.payment_status === "paid");
+  const spent = paid.reduce((s, o) => s + Number(o.total_kobo ?? 0), 0) / 100;
+  const c = rows[0];
+  const recent = rows
+    .slice(0, 5)
+    .map((o) => `• ${o.order_number} — ${o.status} / ${o.payment_status} — ₦${((o.total_kobo as number) / 100).toLocaleString()}`)
+    .join("\n");
+  return [
+    `👤 ${c.customer_name}`,
+    `📧 ${c.customer_email}`,
+    `📱 ${c.customer_phone}`,
+    `Orders: ${rows.length} (${paid.length} paid) · Total spent: ₦${spent.toLocaleString()}`,
+    ``,
+    `Recent:\n${recent}`,
+  ].join("\n");
+}
+
+async function revenueReport(args: { period?: string }) {
+  const period = String(args.period ?? "today").toLowerCase();
+  const now = new Date();
+  let from: Date;
+  if (period.startsWith("month")) {
+    from = new Date(now.getFullYear(), now.getMonth(), 1);
+  } else if (period.startsWith("week")) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+    from = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  } else {
+    from = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  }
+  const fromIso = from.toISOString();
+  const orders = (await sb(
+    `/rest/v1/orders?select=total_kobo,payment_status,created_at&payment_status=eq.paid&created_at=gte.${fromIso}&limit=2000`
+  )) as Record<string, unknown>[];
+  const revenue = orders.reduce((s, o) => s + Number(o.total_kobo ?? 0), 0) / 100;
+  return `💰 Revenue (${period}): ₦${revenue.toLocaleString()} from ${orders.length} paid order${orders.length === 1 ? "" : "s"}.`;
+}
+
+async function bestProducts(args: { limit?: number }) {
+  const limit = Math.min(Math.max(Number(args.limit) || 5, 1), 10);
+  const orders = (await sb(
+    "/rest/v1/orders?select=id&payment_status=eq.paid&limit=2000"
+  )) as Record<string, unknown>[];
+  const ids = orders.map((o) => String(o.id));
+  if (!ids.length) return "No paid orders yet — best sellers will show once orders are paid.";
+  const items = (await sb(
+    `/rest/v1/order_items?select=name,qty,price_kobo,order_id&order_id=in.(${ids.join(",")})&limit=2000`
+  )) as Record<string, unknown>[];
+  const byName = new Map<string, { qty: number; revenue: number }>();
+  for (const i of items) {
+    const name = String(i.name);
+    const cur = byName.get(name) ?? { qty: 0, revenue: 0 };
+    cur.qty += Number(i.qty ?? 0);
+    cur.revenue += (Number(i.price_kobo ?? 0) * Number(i.qty ?? 0)) / 100;
+    byName.set(name, cur);
+  }
+  const sorted = [...byName.entries()].sort((a, b) => b[1].revenue - a[1].revenue).slice(0, limit);
+  if (!sorted.length) return "No sales yet.";
+  return (
+    `🏆 Best sellers (by revenue):\n` +
+    sorted
+      .map(
+        ([name, s], i) =>
+          `${i + 1}. ${name} — ${s.qty} sold — ₦${s.revenue.toLocaleString()}`
+      )
+      .join("\n")
+  );
+}
+
+async function quickRestock(args: { query: string; qty?: number }) {
+  const qty = Number(args.qty);
+  if (!Number.isFinite(qty) || qty <= 0) {
+    return "Tell me the quantity to add, e.g. \"add 10 to stock of Amber Oud\".";
+  }
+  const rows = await sb(
+    `/rest/v1/products?select=id,name,stock&name=ilike.*${encodeURIComponent(String(args.query))}*`
+  );
+  const p = rows?.[0];
+  if (!p) return `No product found matching "${args.query}".`;
+  const next = Number(p.stock) + qty;
+  await sb(`/rest/v1/products?id=eq.${p.id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ stock: next }),
+    headers: { "Content-Type": "application/json", Prefer: "return=minimal" },
+  });
+  return `📦 ${p.name}: stock ${p.stock} → ${next}.`;
+}
+
+async function topCustomers(args: { limit?: number }) {
+  const limit = Math.min(Math.max(Number(args.limit) || 5, 1), 10);
+  const orders = (await sb(
+    "/rest/v1/orders?select=customer_name,customer_email,customer_phone,total_kobo,payment_status&payment_status=eq.paid&limit=2000"
+  )) as Record<string, unknown>[];
+  const byEmail = new Map<string, { name: string; spent: number; count: number }>();
+  for (const o of orders) {
+    const email = String(o.customer_email || "unknown");
+    const cur = byEmail.get(email) ?? {
+      name: String(o.customer_name || email),
+      spent: 0,
+      count: 0,
+    };
+    cur.spent += Number(o.total_kobo ?? 0) / 100;
+    cur.count += 1;
+    byEmail.set(email, cur);
+  }
+  const sorted = [...byEmail.values()].sort((a, b) => b.spent - a.spent).slice(0, limit);
+  if (!sorted.length) return "No paid customers yet.";
+  return (
+    `👑 Top customers:\n` +
+    sorted
+      .map(
+        (c, i) =>
+          `${i + 1}. ${c.name} — ₦${c.spent.toLocaleString()} (${c.count} order${c.count === 1 ? "" : "s"})`
+      )
+      .join("\n")
+  );
+}
+
+async function mostWishlisted(args: { limit?: number }) {
+  const limit = Math.min(Math.max(Number(args.limit) || 5, 1), 10);
+  const wish = (await sb(
+    "/rest/v1/wishlist?select=product_id&limit=5000"
+  )) as Record<string, unknown>[];
+  const count = new Map<string, number>();
+  for (const w of wish) count.set(String(w.product_id), (count.get(String(w.product_id)) ?? 0) + 1);
+  const ids = [...count.keys()];
+  if (!ids.length) return "No wishlists yet.";
+  const products = (await sb(
+    `/rest/v1/products?select=id,name&id=in.(${ids.join(",")})&limit=2000`
+  )) as Record<string, unknown>[];
+  const nameById = new Map(products.map((p) => [String(p.id), String(p.name)]));
+  const sorted = [...count.entries()].sort((a, b) => b[1] - a[1]).slice(0, limit);
+  return (
+    `💛 Most wishlisted:\n` +
+    sorted
+      .map(([id, n], i) => `${i + 1}. ${nameById.get(id) ?? "unknown"} — ${n} wish${n === 1 ? "" : "es"}`)
+      .join("\n")
+  );
+}
+
+async function siteSettings() {
+  const rows = (await sb(
+    "/rest/v1/site_settings?select=key,value&limit=50"
+  )) as Record<string, unknown>[];
+  if (!rows.length) return "No site settings found.";
+  return rows.map((r) => `• ${r.key}: ${r.value}`).join("\n");
+}
+
+async function updateSiteSetting(args: { key: string; value: string }) {
+  const key = String(args.key ?? "").trim();
+  const value = String(args.value ?? "").trim();
+  if (!key || !value) return "Tell me the setting key and new value (e.g. \"set whatsapp_number to 2348028383053\").";
+  const existing = await sb(
+    `/rest/v1/site_settings?select=key&key=eq.${encodeURIComponent(key)}`
+  );
+  if (existing?.length) {
+    await sb(`/rest/v1/site_settings?key=eq.${encodeURIComponent(key)}`, {
+      method: "PATCH",
+      body: JSON.stringify({ value }),
+      headers: { "Content-Type": "application/json", Prefer: "return=minimal" },
+    });
+  } else {
+    await sb("/rest/v1/site_settings", {
+      method: "POST",
+      body: JSON.stringify({ key, value }),
+      headers: { "Content-Type": "application/json", Prefer: "return=minimal" },
+    });
+  }
+  return `✅ ${key} → ${value}`;
+}
+
+async function exportOrdersCsv(ctx: { chatId: number }) {
+  const orders = (await sb(
+    "/rest/v1/orders?select=order_number,created_at,customer_name,customer_email,customer_phone,status,payment_status,total_kobo,delivery_country,delivery_city&order=created_at.desc&limit=2000"
+  )) as Record<string, unknown>[];
+  if (!orders.length) return "No orders to export yet.";
+  const esc = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+  const csv = [
+    ["order_number", "created_at", "customer_name", "customer_email", "customer_phone", "status", "payment_status", "total_kobo", "delivery_country", "delivery_city"].join(","),
+    ...orders.map((o) =>
+      [
+        o.order_number,
+        o.created_at,
+        o.customer_name,
+        o.customer_email,
+        o.customer_phone,
+        o.status,
+        o.payment_status,
+        o.total_kobo,
+        o.delivery_country,
+        o.delivery_city,
+      ]
+        .map(esc)
+        .join(",")
+    ),
+  ].join("\n");
+
+  // Upload CSV to storage, then send the document by URL (Telegram fetches it).
+  const name = `orders-${Date.now()}.csv`;
+  const up = await fetch(`${SB_URL}/storage/v1/object/product-images/${name}`, {
+    method: "POST",
+    headers: {
+      apikey: SB_KEY,
+      Authorization: `Bearer ${SB_KEY}`,
+      "Content-Type": "text/csv",
+      "x-upsert": "true",
+    },
+    body: csv,
+  });
+  if (!up.ok) return `⚠️ Could not build the CSV (storage ${up.status}).`;
+  const fileUrl = `${SB_URL}/storage/v1/object/public/product-images/${name}`;
+  const sent = await tg("sendDocument", {
+    chat_id: ctx.chatId,
+    document: fileUrl,
+    caption: `📄 ${orders.length} orders — Scentury21 export`,
+  });
+  if (!sent?.ok) return `⚠️ CSV is ready but Telegram couldn't send it: ${sent?.description ?? "error"}`;
+  return `📄 Sent you a CSV with ${orders.length} orders.`;
 }
 
 /* ------------------------------------------------------------------ */
@@ -476,7 +756,7 @@ const TOOLS = [
     type: "function",
     function: {
       name: "delete_product",
-      description: "Hide a product from the shop (soft delete) by its name.",
+      description: "Permanently delete a product by its name (removed from the shop AND the admin panel).",
       parameters: {
         type: "object",
         properties: {
@@ -494,18 +774,161 @@ const TOOLS = [
       parameters: { type: "object", properties: {} },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "needs_attention",
+      description:
+        "What needs the owner's attention: unpaid orders, pending orders older than 48h, and products with stock <= 5.",
+      parameters: { type: "object", properties: {} },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "update_payment_status",
+      description: "Mark an order's payment as paid, failed or refunded (e.g. bank transfer received).",
+      parameters: {
+        type: "object",
+        properties: {
+          order_number: { type: "string" },
+          status: { type: "string", enum: PAY_STATUSES },
+        },
+        required: ["order_number", "status"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "find_customer",
+      description:
+        "Find a customer by email, phone or name and show their orders and total spent.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "email / phone / name" },
+        },
+        required: ["query"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "revenue_report",
+      description: "Revenue from paid orders for a period (today, week or month).",
+      parameters: {
+        type: "object",
+        properties: {
+          period: { type: "string", enum: ["today", "week", "month"] },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "best_products",
+      description: "Best-selling products by units sold and revenue from paid orders.",
+      parameters: {
+        type: "object",
+        properties: { limit: { type: "number" } },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "quick_restock",
+      description: "Add stock to a product by its name (e.g. \"add 10 to Amber Oud\").",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "product name" },
+          qty: { type: "number", description: "how many units to add" },
+        },
+        required: ["query", "qty"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "top_customers",
+      description: "Top customers by total spent (paid orders only).",
+      parameters: {
+        type: "object",
+        properties: { limit: { type: "number" } },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "most_wishlisted",
+      description: "Products most added to wishlists.",
+      parameters: {
+        type: "object",
+        properties: { limit: { type: "number" } },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "site_settings",
+      description: "Show site settings (WhatsApp number, social links, etc.).",
+      parameters: { type: "object", properties: {} },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "update_site_setting",
+      description: "Update a site setting by key (e.g. whatsapp_number, instagram).",
+      parameters: {
+        type: "object",
+        properties: {
+          key: { type: "string" },
+          value: { type: "string" },
+        },
+        required: ["key", "value"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "export_orders_csv",
+      description: "Export all orders as a CSV file sent to the chat.",
+      parameters: { type: "object", properties: {} },
+    },
+  },
 ];
 
 type ToolArgs = Record<string, unknown>;
-const TOOL_IMPLS: Record<string, (a: ToolArgs) => Promise<string>> = {
-  list_orders: listOrders as (a: ToolArgs) => Promise<string>,
-  get_order: getOrder as (a: ToolArgs) => Promise<string>,
-  update_order_status: updateOrderStatus as (a: ToolArgs) => Promise<string>,
-  list_products: listProducts as (a: ToolArgs) => Promise<string>,
-  add_product: addProduct as (a: ToolArgs) => Promise<string>,
-  update_product: updateProduct as (a: ToolArgs) => Promise<string>,
-  delete_product: deleteProduct as (a: ToolArgs) => Promise<string>,
-  get_stats: getStats as (a: ToolArgs) => Promise<string>,
+type ToolCtx = { chatId: number };
+const TOOL_IMPLS: Record<string, (a: ToolArgs, ctx: ToolCtx) => Promise<string>> = {
+  list_orders: listOrders as (a: ToolArgs, ctx: ToolCtx) => Promise<string>,
+  get_order: getOrder as (a: ToolArgs, ctx: ToolCtx) => Promise<string>,
+  update_order_status: updateOrderStatus as (a: ToolArgs, ctx: ToolCtx) => Promise<string>,
+  list_products: listProducts as (a: ToolArgs, ctx: ToolCtx) => Promise<string>,
+  add_product: addProduct as (a: ToolArgs, ctx: ToolCtx) => Promise<string>,
+  update_product: updateProduct as (a: ToolArgs, ctx: ToolCtx) => Promise<string>,
+  delete_product: deleteProduct as (a: ToolArgs, ctx: ToolCtx) => Promise<string>,
+  get_stats: getStats as (a: ToolArgs, ctx: ToolCtx) => Promise<string>,
+  needs_attention: needsAttention as (a: ToolArgs, ctx: ToolCtx) => Promise<string>,
+  update_payment_status: updatePaymentStatus as (a: ToolArgs, ctx: ToolCtx) => Promise<string>,
+  find_customer: findCustomer as (a: ToolArgs, ctx: ToolCtx) => Promise<string>,
+  revenue_report: revenueReport as (a: ToolArgs, ctx: ToolCtx) => Promise<string>,
+  best_products: bestProducts as (a: ToolArgs, ctx: ToolCtx) => Promise<string>,
+  quick_restock: quickRestock as (a: ToolArgs, ctx: ToolCtx) => Promise<string>,
+  top_customers: topCustomers as (a: ToolArgs, ctx: ToolCtx) => Promise<string>,
+  most_wishlisted: mostWishlisted as (a: ToolArgs, ctx: ToolCtx) => Promise<string>,
+  site_settings: siteSettings as (a: ToolArgs, ctx: ToolCtx) => Promise<string>,
+  update_site_setting: updateSiteSetting as (a: ToolArgs, ctx: ToolCtx) => Promise<string>,
+  export_orders_csv: exportOrdersCsv as (a: ToolArgs, ctx: ToolCtx) => Promise<string>,
 };
 
 // Write tools change the store (products, order statuses). These are owner-
@@ -515,6 +938,9 @@ const OWNER_ONLY_TOOLS = new Set([
   "add_product",
   "update_product",
   "delete_product",
+  "update_payment_status",
+  "quick_restock",
+  "update_site_setting",
 ]);
 
 const SYSTEM_PROMPT = `You are the SCENTURY21 store manager bot. The owner talks to you in plain language and you run tools against their store (Supabase).
@@ -526,7 +952,8 @@ Rules:
 - Prices in the store are in Nigerian naira (₦). Convert prices to price_naira.
 - If the request is ambiguous (e.g. several products match), ask ONE clarifying question instead of guessing.
 - Never invent data that a tool did not return.
-- If the system tells you an action was blocked because only the store owner can do it, politely explain that to the user and offer read-only alternatives — do not argue or try to bypass it.`;
+- If the system tells you an action was blocked because only the store owner can do it, politely explain that to the user and offer read-only alternatives — do not argue or try to bypass it.
+- You can also: summarize what needs attention, mark payments paid/failed/refunded, look up customers, report revenue by day/week/month, list best sellers, restock products, show top customers, most-wishlisted products, read/update site settings, and export orders as CSV (the CSV tool sends the file itself).`;
 
 async function runAgent(
   chatId: number,
@@ -608,7 +1035,7 @@ async function runAgent(
         let result = `Unknown tool: ${name}`;
         if (impl) {
           try {
-            result = await impl(args);
+            result = await impl(args, { chatId });
           } catch (err) {
             result = `⚠️ Tool error: ${err instanceof Error ? err.message : String(err)}`;
           }
@@ -743,13 +1170,22 @@ serve(async (req) => {
         "👋 Hey boss — SCENTURY21 admin bot here.",
         "",
         "Try things like:",
-        "• “Show my recent orders”",
-        "• “Set order SC-XXXX to shipped”",
+        "📦 Orders",
+        "• “Show my recent orders” / “Orders by status”",
+        "• “Set order SC-XXXX to shipped” / “Mark SC-XXXX as paid”",
+        "• “What needs attention?”",
+        "• “Export orders as CSV”",
+        "🛍️ Products",
         "• “Add a perfume called Amber Oud for ₦385,000, 100ml, stock 10”",
         "• “Send me a photo + details to add a product with a picture”",
-        "• “What's the revenue?” / “Stats”",
         "• “Find the product 'Rose'” / “Edit its price to 50000”",
+        "• “Add 10 to stock of Amber Oud”",
         "• “Delete the product 'Old Scent'”",
+        "💰 Money & customers",
+        "• “Revenue this week” / “Best sellers” / “Top customers”",
+        "• “Find customer samuel@mail.com” / “Most wishlisted”",
+        "⚙️ Settings",
+        "• “Site settings” / “Set whatsapp_number to 2348028383053”",
         "",
         "I'll update your store live. 🛍️",
       ].join("\n"),
