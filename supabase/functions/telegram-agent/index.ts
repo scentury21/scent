@@ -1,7 +1,8 @@
 // Supabase Edge Function: telegram-agent
 //
 // An AI-powered admin bot for SCENTURY21. You talk to your store in plain
-// English on Telegram and the bot (backed by Groq's LLM with tool calling)
+// English on Telegram and the bot (backed by rotating AI providers with
+// tool calling — Groq, Gemini, OpenRouter, NVIDIA, Cerebras, HuggingFace)
 // reads and manages your store: orders, status updates, products (with
 // photos!), stats and more.
 //
@@ -18,16 +19,79 @@ import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 
 const TELEGRAM_API = "https://api.telegram.org";
 
-// Provider-agnostic LLM config. Every supported provider speaks the OpenAI
+// -------------------------------------------------------------------
+// Rotating LLM providers. Every provider speaks the OpenAI
 // chat/completions protocol, so the same tools array works everywhere.
-// Override with secrets: LLM_BASE_URL, LLM_MODEL, LLM_API_KEY.
-// Defaults keep working with the existing GROQ_API_KEY secret.
-const LLM_BASE_URL =
-  Deno.env.get("LLM_BASE_URL") ?? "https://api.groq.com/openai/v1";
-const LLM_MODEL = Deno.env.get("LLM_MODEL") ?? "llama-3.3-70b-versatile";
-const LLM_API_KEY =
-  Deno.env.get("LLM_API_KEY") ?? Deno.env.get("GROQ_API_KEY") ?? "";
-const LLM_COMPLETIONS = `${LLM_BASE_URL.replace(/\/$/, "")}/chat/completions`;
+// The bot round-robins through providers per message and automatically
+// falls back to the next one when a provider is rate-limited (429) or
+// down (5xx). Enable a provider simply by setting its API key secret:
+//   Custom:     LLM_BASE_URL + LLM_MODEL + LLM_API_KEY (or GROQ_API_KEY)
+//   Gemini:     GEMINI_API_KEY
+//   OpenRouter: OPENROUTER_API_KEY
+//   NVIDIA:     NVIDIA_API_KEY
+//   Cerebras:   CEREBRAS_API_KEY
+//   HuggingFace: HUGGINGFACE_API_KEY
+// -------------------------------------------------------------------
+type LLMProvider = {
+  name: string;
+  baseUrl: string;
+  model: string;
+  apiKey: string;
+};
+
+function buildProviders(): LLMProvider[] {
+  const list: LLMProvider[] = [];
+  const push = (
+    name: string,
+    baseUrl: string,
+    model: string,
+    apiKey: string | undefined
+  ) => {
+    if (apiKey) list.push({ name, baseUrl, model, apiKey });
+  };
+  // Custom / Groq default (keeps working with the existing GROQ_API_KEY).
+  push(
+    "custom",
+    Deno.env.get("LLM_BASE_URL") ?? "https://api.groq.com/openai/v1",
+    Deno.env.get("LLM_MODEL") ?? "llama-3.3-70b-versatile",
+    Deno.env.get("LLM_API_KEY") ?? Deno.env.get("GROQ_API_KEY")
+  );
+  push(
+    "gemini",
+    "https://generativelanguage.googleapis.com/v1beta/openai",
+    "gemini-2.0-flash",
+    Deno.env.get("GEMINI_API_KEY")
+  );
+  push(
+    "openrouter",
+    "https://openrouter.ai/api/v1",
+    "meta-llama/llama-3.3-70b-instruct:free",
+    Deno.env.get("OPENROUTER_API_KEY")
+  );
+  push(
+    "nvidia",
+    "https://integrate.api.nvidia.com/v1",
+    "meta/llama-3.3-70b-instruct",
+    Deno.env.get("NVIDIA_API_KEY")
+  );
+  push(
+    "cerebras",
+    "https://api.cerebras.ai/v1",
+    "llama-3.3-70b",
+    Deno.env.get("CEREBRAS_API_KEY")
+  );
+  push(
+    "huggingface",
+    "https://router.huggingface.co/v1",
+    "meta-llama/Llama-3.3-70B-Instruct",
+    Deno.env.get("HUGGINGFACE_API_KEY")
+  );
+  return list;
+}
+
+const PROVIDERS = buildProviders();
+let rotationIndex = 0;
+
 const MAX_AGENT_ROUNDS = 6;
 
 const corsHeaders = {
@@ -971,8 +1035,8 @@ async function runAgent(
   draftJson: Record<string, unknown>,
   isOwner: boolean
 ): Promise<string> {
-  if (!LLM_API_KEY) {
-    return "⚠️ No LLM API key configured — set one with `supabase secrets set LLM_API_KEY=<key>` (or the existing GROQ_API_KEY).";
+  if (!PROVIDERS.length) {
+    return "⚠️ No LLM provider configured — run `supabase secrets set GROQ_API_KEY=<key>` (or any provider key).";
   }
 
   // A photo from THIS message wins; otherwise reuse one stashed from an
@@ -999,24 +1063,45 @@ async function runAgent(
     });
   }
 
+  // Rotate the starting provider per message so the load spreads out.
+  let current = PROVIDERS[rotationIndex++ % PROVIDERS.length];
+
   for (let round = 0; round < MAX_AGENT_ROUNDS; round++) {
-    const res = await fetch(LLM_COMPLETIONS, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${LLM_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: LLM_MODEL,
-        messages,
-        tools: TOOLS,
-        tool_choice: "auto",
-        temperature: 0.4,
-      }),
-    });
-    if (!res.ok) {
-      const text = await res.text().catch(() => "");
-      return `⚠️ LLM error (${res.status}): ${text.slice(0, 200)} — check LLM_BASE_URL / LLM_MODEL / LLM_API_KEY.`;
+    // Try the current provider first; on 429 / 5xx (or any failure) fall
+    // through to the next provider in rotation until one answers.
+    let res: Response | null = null;
+    let lastErr = "";
+    for (let a = 0; a < PROVIDERS.length; a++) {
+      const provider =
+        PROVIDERS[(PROVIDERS.indexOf(current) + a) % PROVIDERS.length];
+      res = await fetch(
+        `${provider.baseUrl.replace(/\/$/, "")}/chat/completions`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${provider.apiKey}`,
+          },
+          body: JSON.stringify({
+            model: provider.model,
+            messages,
+            tools: TOOLS,
+            tool_choice: "auto",
+            temperature: 0.4,
+          }),
+        }
+      );
+      if (res.ok) {
+        current = provider; // stick with the provider that works
+        break;
+      }
+      const status = res.status;
+      const body = await res.text().catch(() => "");
+      lastErr = `${provider.name} (${status}): ${body.slice(0, 120)}`;
+      // Any failure (429 / 5xx / bad key) → try the next provider.
+    }
+    if (!res || !res.ok) {
+      return `⚠️ All ${PROVIDERS.length} LLM providers failed — last error: ${lastErr}. Try again in a minute.`;
     }
     const data = await res.json();
     const msg = data?.choices?.[0]?.message;
