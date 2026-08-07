@@ -258,3 +258,22 @@ endpoint. Set three secrets to switch (Groq stays the default fallback):
 
 After changing secrets, redeploy so the function picks them up:
   supabase functions deploy telegram-agent
+
+### 11 · Rotating AI providers (auto-fallback when one runs out)
+
+The bot round-robins through every provider that has a key set, and if one
+is rate-limited (429) or down (5xx) it automatically tries the next:
+
+  Groq/custom -> Gemini -> OpenRouter -> NVIDIA -> Cerebras -> HuggingFace
+
+Set any combination (all are optional; Groq stays the default):
+  supabase secrets set GEMINI_API_KEY=<key>
+  supabase secrets set OPENROUTER_API_KEY=<key>
+  supabase secrets set NVIDIA_API_KEY=<key>
+  supabase secrets set CEREBRAS_API_KEY=<key>
+  supabase secrets set HUGGINGFACE_API_KEY=<key>
+
+Custom single-provider override (optional):
+  supabase secrets set LLM_BASE_URL=... LLM_MODEL=... LLM_API_KEY=...
+
+After changing secrets, redeploy:  supabase functions deploy telegram-agent
