@@ -72,7 +72,7 @@ function buildProviders(): LLMProvider[] {
   push(
     "openrouter",
     "https://openrouter.ai/api/v1",
-    ["google/gemma-4-31b-it:free", "openai/gpt-oss-20b:free"],
+    ["openai/gpt-oss-20b:free", "google/gemma-4-31b-it:free"],
     Deno.env.get("OPENROUTER_API_KEY")
   );
   push(
