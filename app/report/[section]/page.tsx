@@ -64,6 +64,8 @@ const STATUS_COLOR: Record<string, string> = {
 };
 
 const STYLE = `
+  html, body { background: #121110 !important; }
+  header, footer, canvas { display: none !important; }
   .report { background: #121110; color: #f5efe2; font-family: Georgia, 'Times New Roman', serif; padding: 30px 34px; min-height: 92vh; }
   .report .head { display: flex; align-items: baseline; justify-content: space-between; border-bottom: 2px solid #c9a24b; padding-bottom: 12px; margin-bottom: 20px; }
   .report .head h1 { font-size: 26px; letter-spacing: 1px; color: #e5b25d; margin: 0; }

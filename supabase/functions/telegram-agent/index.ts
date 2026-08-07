@@ -729,8 +729,9 @@ async function screenshotPage(
   if (!siteUrl || !reportKey) {
     return "⚠️ Screenshots aren't wired up yet — set `supabase secrets set SITE_URL=... REPORT_KEY=...` and add REPORT_KEY to your Vercel env.";
   }
+  // Cache-buster so Microlink never serves a stale screenshot.
   const pageUrl =
-    `${siteUrl}/report/${section}?key=${encodeURIComponent(reportKey)}`;
+    `${siteUrl}/report/${section}?key=${encodeURIComponent(reportKey)}&_=${Date.now()}`;
   const shot = await fetch(
     `https://api.microlink.io/?url=${encodeURIComponent(pageUrl)}&screenshot=true&device=desktop&waitUntil=networkidle2&encoding=base64&meta=false&pdf=false`
   ).catch(() => null);

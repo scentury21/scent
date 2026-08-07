@@ -277,3 +277,21 @@ Custom single-provider override (optional):
   supabase secrets set LLM_BASE_URL=... LLM_MODEL=... LLM_API_KEY=...
 
 After changing secrets, redeploy:  supabase functions deploy telegram-agent
+
+### 12 · Bot screenshots + CSV fix
+
+- CSV export now uploads the file bytes straight to Telegram (multipart) — no
+  storage bucket involved, so it always delivers.
+- Screenshots: the bot can send you an image of any admin page
+  (orders / products / customers / stats) via the free Microlink API
+  (~25/day). The images come from server-rendered /report/{section} pages
+  gated by the REPORT_KEY secret.
+
+Required env (Vercel):
+  REPORT_KEY=<same value as the Supabase secret>   # gates /report pages
+  SUPABASE_SERVICE_ROLE_KEY=<already set>          # /report fetches data
+
+Bot secrets (Supabase):
+  supabase secrets set SITE_URL=https://your-domain.vercel.app REPORT_KEY=<key>
+
+Usage in Telegram: "Screenshot the orders page" · "Export orders as CSV"
