@@ -91,6 +91,8 @@ function buildProviders(): LLMProvider[] {
 
 const PROVIDERS = buildProviders();
 let rotationIndex = 0;
+// Name of the provider that last answered (reported by the /provider command).
+let lastProviderName = "none yet";
 
 const MAX_AGENT_ROUNDS = 6;
 
@@ -1093,6 +1095,7 @@ async function runAgent(
       );
       if (res.ok) {
         current = provider; // stick with the provider that works
+        lastProviderName = provider.name;
         break;
       }
       const status = res.status;
@@ -1256,6 +1259,20 @@ serve(async (req) => {
     return json({ ok: true, skipped: "non-admin" });
   }
 
+  if (text === "/provider" || text === "/model" || text === "/ai") {
+    await tg("sendMessage", {
+      chat_id: chatId,
+      text: [
+        "🤖 AI provider status",
+        `• Last answer: ${lastProviderName}`,
+        `• Rotation: ${PROVIDERS.map((p) => p.name).join(" → ")}`,
+        "",
+        "If a provider rate-limits or fails, the bot auto-falls back to the next one in rotation.",
+      ].join("\n"),
+    });
+    return json({ ok: true });
+  }
+
   const isStart = text === "/start" || text === "/help";
   if (isStart) {
     await clearDraft(chatId);
@@ -1281,6 +1298,7 @@ serve(async (req) => {
         "• “Find customer samuel@mail.com” / “Most wishlisted”",
         "⚙️ Settings",
         "• “Site settings” / “Set whatsapp_number to 2348028383053”",
+        "🤖 “/provider” — see which AI is answering right now",
         "",
         "I'll update your store live. 🛍️",
       ].join("\n"),
