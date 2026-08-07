@@ -1,0 +1,6 @@
+# SCENTURY21 — Supabase project config (minimal).
+# telegram-agent is a Telegram webhook: Telegram calls it with no JWT, so JWT
+# verification must be OFF for it. Security is enforced inside the function by
+# the x-telegram-bot-api-secret-token check (fail-closed), not by the gateway.
+[functions.telegram-agent]
+verify_jwt = false
