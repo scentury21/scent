@@ -17,8 +17,17 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 
 const TELEGRAM_API = "https://api.telegram.org";
-const GROQ_API = "https://api.groq.com/openai/v1/chat/completions";
-const GROQ_MODEL = "llama-3.3-70b-versatile";
+
+// Provider-agnostic LLM config. Every supported provider speaks the OpenAI
+// chat/completions protocol, so the same tools array works everywhere.
+// Override with secrets: LLM_BASE_URL, LLM_MODEL, LLM_API_KEY.
+// Defaults keep working with the existing GROQ_API_KEY secret.
+const LLM_BASE_URL =
+  Deno.env.get("LLM_BASE_URL") ?? "https://api.groq.com/openai/v1";
+const LLM_MODEL = Deno.env.get("LLM_MODEL") ?? "llama-3.3-70b-versatile";
+const LLM_API_KEY =
+  Deno.env.get("LLM_API_KEY") ?? Deno.env.get("GROQ_API_KEY") ?? "";
+const LLM_COMPLETIONS = `${LLM_BASE_URL.replace(/\/$/, "")}/chat/completions`;
 const MAX_AGENT_ROUNDS = 6;
 
 const corsHeaders = {
@@ -962,8 +971,9 @@ async function runAgent(
   draftJson: Record<string, unknown>,
   isOwner: boolean
 ): Promise<string> {
-  const apiKey = Deno.env.get("GROQ_API_KEY") ?? "";
-  if (!apiKey) return "⚠️ GROQ_API_KEY is not configured yet — set it with `supabase secrets set GROQ_API_KEY=<key>`.";
+  if (!LLM_API_KEY) {
+    return "⚠️ No LLM API key configured — set one with `supabase secrets set LLM_API_KEY=<key>` (or the existing GROQ_API_KEY).";
+  }
 
   // A photo from THIS message wins; otherwise reuse one stashed from an
   // earlier message (the product-add wizard across turns).
@@ -990,14 +1000,14 @@ async function runAgent(
   }
 
   for (let round = 0; round < MAX_AGENT_ROUNDS; round++) {
-    const res = await fetch(GROQ_API, {
+    const res = await fetch(LLM_COMPLETIONS, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
+        Authorization: `Bearer ${LLM_API_KEY}`,
       },
       body: JSON.stringify({
-        model: GROQ_MODEL,
+        model: LLM_MODEL,
         messages,
         tools: TOOLS,
         tool_choice: "auto",
@@ -1006,7 +1016,7 @@ async function runAgent(
     });
     if (!res.ok) {
       const text = await res.text().catch(() => "");
-      return `⚠️ Groq error (${res.status}): ${text.slice(0, 200)}`;
+      return `⚠️ LLM error (${res.status}): ${text.slice(0, 200)} — check LLM_BASE_URL / LLM_MODEL / LLM_API_KEY.`;
     }
     const data = await res.json();
     const msg = data?.choices?.[0]?.message;

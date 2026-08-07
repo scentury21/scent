@@ -237,3 +237,24 @@ The AI bot can now do (owner-only writes, group = read-only):
 Update the daily-report cron if your schedule differs:
   select cron.schedule('telegram-daily-report','0 8 * * *',
     $$select net.http_post(url:='https://<ref>.supabase.co/functions/v1/telegram-daily-report',headers:='{"authorization":"Bearer <TELEGRAM_AGENT_SECRET>"}'::jsonb)$$);
+
+### 10 · Switching the bot's AI provider (free tier rate limits)
+
+The bot is provider-agnostic — it calls any OpenAI-compatible `/chat/completions`
+endpoint. Set three secrets to switch (Groq stays the default fallback):
+
+**Google Gemini (recommended free tier — 1,500 req/day):**
+  supabase secrets set LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai LLM_MODEL=gemini-2.0-flash LLM_API_KEY=<gemini-key>
+  (key from https://aistudio.google.com/apikey — free)
+
+**OpenRouter (free models):**
+  supabase secrets set LLM_BASE_URL=https://openrouter.ai/api/v1 LLM_MODEL=meta-llama/llama-3.3-70b-instruct:free LLM_API_KEY=<openrouter-key>
+
+**NVIDIA NIM:**
+  supabase secrets set LLM_BASE_URL=https://integrate.api.nvidia.com/v1 LLM_MODEL=meta/llama-3.3-70b-instruct LLM_API_KEY=<nvidia-key>
+
+**Cerebras:**
+  supabase secrets set LLM_BASE_URL=https://api.cerebras.ai/v1 LLM_MODEL=llama-3.3-70b LLM_API_KEY=<cerebras-key>
+
+After changing secrets, redeploy so the function picks them up:
+  supabase functions deploy telegram-agent
