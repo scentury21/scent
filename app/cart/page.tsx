@@ -1,16 +1,29 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useCart } from "@/lib/cart";
 import { formatNGN } from "@/lib/currency";
 import ProductBottle from "@/components/product-bottle";
-import { useMemo } from "react";
+import { createClient } from "@/lib/supabase/client";
 
 const FREE_SHIPPING_THRESHOLD = 250000;
 const SHIPPING_FEE = 5000;
 
 export default function CartPage() {
   const { items, updateQty, removeItem, subtotal, hydrated, getProduct } = useCart();
+  const router = useRouter();
+  const [signedIn, setSignedIn] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data }) => {
+      setSignedIn(!!data.user);
+      setAuthChecked(true);
+    });
+  }, []);
 
   const shipping = subtotal === 0 || subtotal >= FREE_SHIPPING_THRESHOLD ? 0 : SHIPPING_FEE;
   const total = subtotal + shipping;
@@ -164,9 +177,30 @@ export default function CartPage() {
               </div>
             </dl>
 
-            <Link href="/checkout" className="btn btn-gold mt-6 w-full py-3.5 text-base">
-              Proceed to checkout →
-            </Link>
+            {!authChecked || signedIn ? (
+              <Link href="/checkout" className="btn btn-gold mt-6 w-full py-3.5 text-base">
+                Proceed to checkout →
+              </Link>
+            ) : (
+              <button
+                onClick={() => router.push("/login?redirectTo=/checkout")}
+                className="btn btn-gold mt-6 w-full py-3.5 text-base"
+              >
+                Log in to check out →
+              </button>
+            )}
+            {authChecked && !signedIn && (
+              <p className="mt-2 text-center text-[11px] text-zinc-500">
+                You&apos;ll need an account to buy —{" "}
+                <Link
+                  href="/signup?redirectTo=/checkout"
+                  className="font-semibold text-gold-300 hover:text-gold-200"
+                >
+                  create one free
+                </Link>
+                .
+              </p>
+            )}
             <a
               href={`https://wa.me/2348028383053?text=${whatsappText}`}
               target="_blank"

@@ -48,7 +48,11 @@ function VerifyOtpForm() {
       });
       if (cancelled) return;
       if (err) {
-        setError(err.message);
+        setError(
+          typeof err.message === "string" && err.message
+            ? err.message
+            : "Something went wrong verifying your link. Please try again."
+        );
         setVerifying(false);
       } else {
         finish();
@@ -97,7 +101,11 @@ function VerifyOtpForm() {
     setLoading(false);
 
     if (error) {
-      setError(error.message);
+      setError(
+        typeof error.message === "string" && error.message
+          ? error.message
+          : "Something went wrong verifying your code. Please try again."
+      );
       return;
     }
 
@@ -116,7 +124,11 @@ function VerifyOtpForm() {
     });
 
     if (error) {
-      setError(error.message);
+      setError(
+        typeof error.message === "string" && error.message
+          ? error.message
+          : "Something went wrong verifying your code. Please try again."
+      );
       return;
     }
 

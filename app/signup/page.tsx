@@ -40,6 +40,36 @@ function Spinner() {
   );
 }
 
+/** Turns raw Supabase errors into messages a customer can actually act on.
+ *  Never shows raw objects (the “{}” bug). */
+function friendlySignupError(error: {
+  message?: unknown;
+  status?: number;
+  code?: string;
+}): string {
+  const raw = typeof error.message === "string" ? error.message : "";
+  const low = raw.toLowerCase();
+  if (
+    error.status === 500 ||
+    low.includes("confirmation email") ||
+    low.includes("smtp") ||
+    low.includes("unexpected_failure") ||
+    low.includes("failed to send")
+  ) {
+    return "We couldn’t send the confirmation email right now. Our email service needs a quick fix — meanwhile, please use “Continue with Google” to sign up instantly. 🙏";
+  }
+  if (low.includes("already registered") || low.includes("user already exists")) {
+    return "An account already exists for this email — just sign in instead.";
+  }
+  if (low.includes("password")) {
+    return "Please choose a stronger password (at least 6 characters).";
+  }
+  if (low.includes("valid email") || low.includes("invalid email")) {
+    return "Please enter a valid email address.";
+  }
+  return raw || "Something went wrong. Please try again or use “Continue with Google”.";
+}
+
 export default function SignupPage() {
   return (
     <Suspense fallback={null}>
@@ -83,9 +113,7 @@ function SignupForm() {
 
     if (error) {
       console.error("Signup error:", error);
-      setError(
-        error.message || "Something went wrong. Check the browser console for details."
-      );
+      setError(friendlySignupError(error));
       return;
     }
 

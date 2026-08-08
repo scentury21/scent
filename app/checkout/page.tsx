@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 import { mapProductRow, type Product, type ProductRow } from "@/lib/products";
 import { COUNTRIES, getCountry } from "@/lib/countries";
 import { formatNGN } from "@/lib/currency";
+import AuthGate from "@/components/auth-gate";
 import { saveOrder, uid } from "@/lib/store";
 import type { DeliveryInfo, Order } from "@/lib/types";
 
@@ -61,6 +62,8 @@ export default function CheckoutPage() {
   const [error, setError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [catalog, setCatalog] = useState<Product[]>([]);
+  const [authChecked, setAuthChecked] = useState(false);
+  const [signedIn, setSignedIn] = useState(false);
 
   const country = useMemo(() => getCountry(form.countryCode), [form.countryCode]);
   const shipping = subtotal === 0 || subtotal >= FREE_SHIPPING_THRESHOLD ? 0 : SHIPPING_FEE;
@@ -92,6 +95,15 @@ export default function CheckoutPage() {
       router.replace("/cart");
     }
   }, [hydrated, items.length, router]);
+
+  /* Buying requires an account — gate the whole checkout for guests. */
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data }) => {
+      setSignedIn(!!data.user);
+      setAuthChecked(true);
+    });
+  }, []);
 
   /* Load the live catalog so order items snapshot name/price/size */
   useEffect(() => {
@@ -359,6 +371,10 @@ export default function CheckoutPage() {
 
   if (!hydrated) {
     return <div className="mx-auto max-w-3xl px-4 py-24 text-center text-sm text-zinc-500">Loading checkout…</div>;
+  }
+
+  if (authChecked && !signedIn) {
+    return <AuthGate redirectTo="/checkout" />;
   }
 
   const errFor = (k: keyof FormState) => submitted && !form[k].trim();
