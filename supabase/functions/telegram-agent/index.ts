@@ -1089,17 +1089,103 @@ const OWNER_ONLY_TOOLS = new Set([
   "update_site_setting",
 ]);
 
-const SYSTEM_PROMPT = `You are the SCENTURY21 store manager bot. The owner talks to you in plain language and you run tools against their store (Supabase).
+const SYSTEM_PROMPT = `You are the SCENTURY21 luxury perfume store manager bot — the owner's smart assistant for running their store from Telegram.
 
-Rules:
-- Be friendly, concise and helpful. Use emojis sparingly.
+STORE FACTS
+- Business: SCENTURY21, a Nigerian luxury perfume house selling extrait and eau de parfum, delivered to 40+ countries.
+- Currency: Nigerian naira (₦). Amounts are stored in KOBO (1 naira = 100 kobo) — always divide by 100 before talking money, and format like ₦385,000.
+- Order statuses: pending → processing → shipped → delivered (or cancelled). Payment statuses: paid, pending, failed, refunded.
+- Orders have an order_number (e.g. SC-XXXX), customer name/email/phone, items, and delivery info.
+- Products have name, price, size, stock, active and image_url.
+
+HOW TO THINK
+- Read the LIVE STORE SNAPSHOT system message — it holds current totals, pending orders and low stock. Use it to answer instantly; only call a tool when you need detail beyond the snapshot.
+- Understand follow-ups. The owner talks like a human: "and what about yesterday?", "the second one", "ok now ship it", "send that as well", "how about today?". Resolve pronouns (it/that/them/the first/second/last one) against the last discussed order, product, customer or file.
+- If a request is ambiguous, ask ONE short clarifying question instead of guessing.
+
+INTENT MAPPING (typical phrasings → tool)
+- Revenue: "how much did we make" / "revenue today|this week|this month" → revenue_report
+- Recent orders: "show my orders" / "latest orders" / "what's new" → list_orders
+- Urgent: "what needs attention" / "any problems" / "anything urgent" → needs_attention
+- Best sellers: "what sold best" / "best selling" → best_products
+- Top customers: "who are my best customers" → top_customers
+- Find customer: "find samuel@mail.com" → find_customer
+- CSV: "export orders as csv/excel/file" → export_orders_csv (it sends the file itself)
+- Screenshot: "screenshot/shoot/capture the orders|products|customers|stats page" → screenshot_page
+- Add product (esp. with a photo): "add a perfume called X for ₦Y" or a photo attached → add_product with the photo URL as image_url
+- Edit/delete: "change price of X to ₦Y" / "delete product X" → update_product / delete_product
+- Order status: "set SC-XXXX to shipped" / "mark as paid" → update_order_status / update_payment_status
+- Stock: "add 10 to stock of X" / "restock" → quick_restock
+- Settings: "whatsapp_number = ..." → update_site_setting
+
+RULES
+- Be friendly, concise and precise. Use emojis sparingly.
 - When the owner asks to update an order's status or add/edit/delete a product, DO IT via the tools — do not just describe it.
-- If a photo was attached to the conversation, the owner wants it as the product photo — pass the provided photo URL as image_url when adding/editing the product.
-- Prices in the store are in Nigerian naira (₦). Convert prices to price_naira.
-- If the request is ambiguous (e.g. several products match), ask ONE clarifying question instead of guessing.
-- Never invent data that a tool did not return.
-- If the system tells you an action was blocked because only the store owner can do it, politely explain that to the user and offer read-only alternatives — do not argue or try to bypass it.
-- You can also: summarize what needs attention, mark payments paid/failed/refunded, look up customers, report revenue by day/week/month, list best sellers, restock products, show top customers, most-wishlisted products, read/update site settings, and export orders as CSV (the CSV tool sends the file itself). You can also screenshot any admin page as an image (orders, products, customers, stats) with screenshot_page.`;
+- If a photo was attached, the owner wants it as the product photo — pass the provided photo URL as image_url when adding/editing the product.
+- Never invent data that a tool did not return. If you don't know, say so and offer the nearest tool.
+- If an action was blocked because only the store owner can do it, explain politely and offer read-only alternatives.
+- When showing money, always use ₦ with thousands separators (divide kobo by 100 first).
+- Reference order numbers and product names exactly as returned by tools.`;
+
+/* ------------------------------------------------------------------ */
+/* Conversation memory + live snapshot (the bot's brain)                */
+/* ------------------------------------------------------------------ */
+
+const MEMORY_KEEP = 40; // rows retained per chat in the DB
+const MEMORY_INCLUDE = 12; // recent turns injected into the LLM context
+
+async function loadMemory(
+  chatId: number
+): Promise<{ role: string; content: string }[]> {
+  try {
+    const rows = (await sb(
+      `/rest/v1/bot_memory?select=role,content&chat_id=eq.${chatId}&order=seq.desc&limit=${MEMORY_INCLUDE}`
+    )) as { role: string; content: string }[] | null;
+    return rows ? rows.reverse() : [];
+  } catch {
+    return [];
+  }
+}
+
+async function appendMemory(
+  chatId: number,
+  role: "user" | "assistant",
+  content: string
+) {
+  try {
+    const last = (await sb(
+      `/rest/v1/bot_memory?select=seq&chat_id=eq.${chatId}&order=seq.desc&limit=1`
+    )) as { seq: number }[] | null;
+    const next = (last?.[0]?.seq ?? 0) + 1;
+    await sb("/rest/v1/bot_memory", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Prefer: "return=minimal" },
+      body: JSON.stringify({ chat_id: chatId, seq: next, role, content }),
+    });
+    // Prune turns older than the cap so the table never grows unbounded.
+    await sb(`/rest/v1/bot_memory?chat_id=eq.${chatId}&seq=lte.${next - MEMORY_KEEP}`, {
+      method: "DELETE",
+      headers: { Prefer: "return=minimal" },
+    });
+  } catch {
+    /* non-fatal */
+  }
+}
+
+/** Fresh, compact store state injected before every turn, so the bot
+ *  already knows the numbers when the owner asks. */
+async function businessSnapshot(): Promise<string> {
+  try {
+    return (
+      `LIVE STORE SNAPSHOT (refreshed just now — trust these numbers, use tools only for detail):\n` +
+      (await getStats()) +
+      "\n\n" +
+      (await needsAttention())
+    );
+  } catch {
+    return "LIVE STORE SNAPSHOT: temporarily unavailable — use the tools for numbers.";
+  }
+}
 
 async function runAgent(
   chatId: number,
@@ -1117,8 +1203,18 @@ async function runAgent(
   const effectivePhoto =
     photoUrl ?? (typeof draftJson.last_photo_url === "string" ? draftJson.last_photo_url : null);
 
+  // Rebuild context every turn: persona + live snapshot + conversation
+  // memory + photo/draft hints + the current message.
+  const memory = await loadMemory(chatId);
+  const snapshot = await businessSnapshot();
+
   const messages: Record<string, unknown>[] = [
     { role: "system", content: SYSTEM_PROMPT },
+    { role: "system", content: snapshot },
+    ...memory.map((m) => ({
+      role: m.role === "assistant" ? "assistant" : "user",
+      content: m.content,
+    })),
     {
       role: "system",
       content: effectivePhoto
@@ -1374,6 +1470,7 @@ serve(async (req) => {
         "• “Site settings” / “Set whatsapp_number to 2348028383053”",
         "🤖 “/provider” — see which AI is answering right now",
         "",
+        "🧠 I remember our chat — ask follow-ups like “and what about yesterday?”",
         "I'll update your store live. 🛍️",
       ].join("\n"),
     });
@@ -1435,6 +1532,11 @@ serve(async (req) => {
 
   const draft = await getDraft(chatId);
   const reply = await runAgent(chatId, prompt, photoUrl, draft, isOwner);
+
+  // Remember this turn so follow-ups (“and what about yesterday?”, “the
+  // second one”) keep making sense across messages.
+  await appendMemory(chatId, "user", prompt);
+  if (reply && reply.length) await appendMemory(chatId, "assistant", reply);
 
   // If the agent added a product successfully, clear any draft + photo refs.
   if (reply.startsWith("✅ Added")) {

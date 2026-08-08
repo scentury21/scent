@@ -341,3 +341,14 @@ Vercel env (Production + Preview):
   falls back to the self-hosted web-push path — never double notifications.
 - Desktop browser-closed still requires the "background apps" setting above;
   on Android the installed PWA receives pushes with Chrome closed.
+
+### 15 · Smarter bot (memory + live snapshot)
+
+- Conversation memory: the bot stores recent turns per chat in the
+  `bot_memory` table and injects them into every reply, so follow-ups like
+  "and what about yesterday?" / "the second one" keep making sense.
+- Live store snapshot: before every turn the bot refreshes dashboard stats
+  + "needs attention" (reusing get_stats / needs_attention), so it already
+  knows your totals, pending orders and low stock when you ask.
+- Smarter system prompt: store facts (₦ naira / kobo, statuses), intent
+  mapping of typical phrasings to tools, and pronoun follow-up rules.

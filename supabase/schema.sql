@@ -415,3 +415,19 @@ create table if not exists public.bot_drafts (
 alter table public.bot_drafts enable row level security;
 -- Only the service role (used by the telegram-agent edge function) touches
 -- this table — no anon/authenticated policies are created on purpose.
+
+-- Holds the last few conversation turns per admin chat so the telegram bot
+-- understands follow-ups ("and what about yesterday?", "the second one")
+-- across separate messages.
+create table if not exists public.bot_memory (
+  chat_id bigint not null,
+  seq bigint not null,
+  role text not null,
+  content text not null,
+  created_at timestamptz not null default now(),
+  primary key (chat_id, seq)
+);
+alter table public.bot_memory enable row level security;
+create index if not exists bot_memory_chat_idx on public.bot_memory (chat_id, seq desc);
+-- Service role only (used by telegram-agent) — no anon/authenticated
+-- policies are created on purpose.
