@@ -352,3 +352,12 @@ Vercel env (Production + Preview):
   knows your totals, pending orders and low stock when you ask.
 - Smarter system prompt: store facts (₦ naira / kobo, statuses), intent
   mapping of typical phrasings to tools, and pronoun follow-up rules.
+
+### 16 · Jarvis-style long-term memory
+
+- `bot_facts` table stores durable facts the owner teaches the bot
+  ("remember that ..."). Injected into EVERY conversation so answers are
+  personalized. Tools: remember_fact / forget_fact / list_facts.
+- Deeper chat memory: 120 turns retained, 16 recent injected.
+- Try: "remember that my VIP customer is Ada", "what do you remember?",
+  "forget vip_ada".

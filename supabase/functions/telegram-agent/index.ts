@@ -1050,6 +1050,61 @@ const TOOLS = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "remember_fact",
+      description:
+        "Save a durable fact about the store or the owner to long-term memory — preferences, VIP customers, business notes, decisions, pricing rules. Call this when the owner says 'remember that ...' or shares something worth keeping forever.",
+      parameters: {
+        type: "object",
+        properties: {
+          key: {
+            type: "string",
+            description: "Short unique key, e.g. vip_ada, pref_currency, delivery_rule.",
+          },
+          value: {
+            type: "string",
+            description: "The fact to remember, in the owner's words.",
+          },
+          category: {
+            type: "string",
+            enum: ["general", "preferences", "customer", "product", "settings"],
+            description: "Optional category.",
+          },
+        },
+        required: ["key", "value"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "forget_fact",
+      description: "Delete a fact from long-term memory by its key.",
+      parameters: {
+        type: "object",
+        properties: {
+          key: { type: "string", description: "The key of the fact to delete." },
+        },
+        required: ["key"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "list_facts",
+      description:
+        "List everything in long-term memory (optionally filtered by a search term). Use when the owner asks 'what do you remember about me/the store?'.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "Optional search term to filter facts by key or value." },
+        },
+      },
+    },
+  },
 ];
 
 type ToolArgs = Record<string, unknown>;
@@ -1075,6 +1130,9 @@ const TOOL_IMPLS: Record<string, (a: ToolArgs, ctx: ToolCtx) => Promise<string>>
   update_site_setting: updateSiteSetting as (a: ToolArgs, ctx: ToolCtx) => Promise<string>,
   export_orders_csv: exportOrdersCsv as (a: ToolArgs, ctx: ToolCtx) => Promise<string>,
   screenshot_page: screenshotPage as (a: ToolArgs, ctx: ToolCtx) => Promise<string>,
+  remember_fact: rememberFact as (a: ToolArgs, ctx: ToolCtx) => Promise<string>,
+  forget_fact: forgetFact as (a: ToolArgs, ctx: ToolCtx) => Promise<string>,
+  list_facts: listFacts as (a: ToolArgs, ctx: ToolCtx) => Promise<string>,
 };
 
 // Write tools change the store (products, order statuses). These are owner-
@@ -1097,6 +1155,12 @@ STORE FACTS
 - Order statuses: pending → processing → shipped → delivered (or cancelled). Payment statuses: paid, pending, failed, refunded.
 - Orders have an order_number (e.g. SC-XXXX), customer name/email/phone, items, and delivery info.
 - Products have name, price, size, stock, active and image_url.
+
+MEMORY
+- The owner can say "remember that ..." — save it with remember_fact using a short unique key (e.g. vip_ada). Also proactively remember durable preferences and business notes (VIP customers, delivery rules, pricing policies, things the owner repeats).
+- LONG-TERM MEMORY facts are injected into every conversation — use them to personalize answers, and never contradict a saved fact without checking with the owner.
+- "what do you remember about me/the store?" → list_facts. "forget <fact>" → forget_fact.
+- If the owner updates a fact, overwrite the same key instead of adding a duplicate.
 
 HOW TO THINK
 - Read the LIVE STORE SNAPSHOT system message — it holds current totals, pending orders and low stock. Use it to answer instantly; only call a tool when you need detail beyond the snapshot.
@@ -1131,8 +1195,8 @@ RULES
 /* Conversation memory + live snapshot (the bot's brain)                */
 /* ------------------------------------------------------------------ */
 
-const MEMORY_KEEP = 40; // rows retained per chat in the DB
-const MEMORY_INCLUDE = 12; // recent turns injected into the LLM context
+const MEMORY_KEEP = 120; // rows retained per chat in the DB
+const MEMORY_INCLUDE = 16; // recent turns injected into the LLM context
 
 async function loadMemory(
   chatId: number
@@ -1187,6 +1251,89 @@ async function businessSnapshot(): Promise<string> {
   }
 }
 
+/* ------------------------------------------------------------------ */
+/* Long-term memory (Jarvis-style facts)                               */
+/* ------------------------------------------------------------------ */
+
+async function loadFacts(chatId: number): Promise<string[]> {
+  try {
+    const rows = (await sb(
+      `/rest/v1/bot_facts?select=key,value&chat_id=eq.${chatId}&order=key.asc&limit=50`
+    )) as { key: string; value: string }[] | null;
+    return rows ? rows.map((r) => `${r.key}: ${r.value}`) : [];
+  } catch {
+    return [];
+  }
+}
+
+async function rememberFact(
+  args: { key: string; value: string; category?: string },
+  ctx: ToolCtx
+): Promise<string> {
+  const key = String(args.key ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "_")
+    .slice(0, 60);
+  const value = String(args.value ?? "").trim().slice(0, 500);
+  if (!key || !value) return "⚠️ I need both a key and a value to remember something.";
+  try {
+    await sb("/rest/v1/bot_facts", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Prefer: "return=minimal,resolution=merge-duplicates",
+      },
+      body: JSON.stringify({
+        chat_id: ctx.chatId,
+        key,
+        value,
+        category: String(args.category ?? "general"),
+        updated_at: new Date().toISOString(),
+      }),
+    });
+    return `✅ Remembered: ${key} = ${value}. I'll keep that in long-term memory.`;
+  } catch {
+    return "⚠️ Couldn't save that to memory — try again.";
+  }
+}
+
+async function forgetFact(args: { key: string }, ctx: ToolCtx): Promise<string> {
+  const key = String(args.key ?? "").trim().toLowerCase().replace(/\s+/g, "_");
+  if (!key) return "⚠️ Tell me which fact to forget (its key).";
+  try {
+    await sb(
+      `/rest/v1/bot_facts?chat_id=eq.${ctx.chatId}&key=eq.${encodeURIComponent(key)}`,
+      { method: "DELETE", headers: { Prefer: "return=minimal" } }
+    );
+    return `🗑️ Forgotten: ${key}.`;
+  } catch {
+    return "⚠️ Couldn't forget that fact — try again.";
+  }
+}
+
+async function listFacts(args: { query?: string }, ctx: ToolCtx): Promise<string> {
+  const q = String(args.query ?? "").trim().toLowerCase();
+  try {
+    const rows = (await sb(
+      `/rest/v1/bot_facts?select=key,value,category&chat_id=eq.${ctx.chatId}&order=key.asc&limit=200`
+    )) as { key: string; value: string; category: string }[] | null;
+    if (!rows || !rows.length) {
+      return "🧠 Long-term memory is empty. Say \"remember that ...\" to teach me things.";
+    }
+    const filtered = q
+      ? rows.filter((r) => r.key.includes(q) || r.value.toLowerCase().includes(q))
+      : rows;
+    if (!filtered.length) return `Nothing found for "${q}" in long-term memory.`;
+    return (
+      `🧠 Long-term memory (${filtered.length}):\n` +
+      filtered.map((r) => `• ${r.key}: ${r.value}`).join("\n")
+    );
+  } catch {
+    return "⚠️ Couldn't read long-term memory right now.";
+  }
+}
+
 async function runAgent(
   chatId: number,
   userText: string,
@@ -1223,6 +1370,16 @@ async function runAgent(
     },
     { role: "user", content: userText },
   ];
+
+  // Long-term memory: facts the owner saved ("remember that ...") get
+  // injected into every conversation so the bot personalizes answers.
+  const facts = await loadFacts(chatId);
+  if (facts.length) {
+    messages.push({
+      role: "system",
+      content: `LONG-TERM MEMORY — facts the owner told you earlier (respect and use them; don't repeat them unless asked):\n- ${facts.join("\n- ")}`,
+    });
+  }
 
   // Carry over partial product details from a previous turn (the wizard).
   if (draftJson && Object.keys(draftJson).length) {
@@ -1471,6 +1628,7 @@ serve(async (req) => {
         "🤖 “/provider” — see which AI is answering right now",
         "",
         "🧠 I remember our chat — ask follow-ups like “and what about yesterday?”",
+        "🧠 “Remember that my VIP customer is Ada” / “What do you remember about me?”",
         "I'll update your store live. 🛍️",
       ].join("\n"),
     });
