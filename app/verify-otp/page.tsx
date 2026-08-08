@@ -164,7 +164,7 @@ function VerifyOtpForm() {
 
         {!verifying && (
           <form onSubmit={handleSubmit} className="mt-8">
-            <div className="flex w-full justify-center gap-1.5 sm:gap-2">
+            <div className="mx-auto grid w-full max-w-md grid-cols-8 gap-1.5 sm:gap-2">
               {digits.map((digit, i) => (
                 <input
                   key={i}
@@ -173,11 +173,26 @@ function VerifyOtpForm() {
                   }}
                   type="text"
                   inputMode="numeric"
+                  autoComplete="one-time-code"
                   maxLength={1}
                   value={digit}
                   onChange={(e) => handleChange(i, e.target.value)}
                   onKeyDown={(e) => handleKeyDown(i, e)}
-                  className="input h-14 w-full min-w-0 max-w-[3.25rem] flex-1 text-center text-lg"
+                  onFocus={(e) => e.target.select()}
+                  onPaste={(e) => {
+                    e.preventDefault();
+                    const pasted = e.clipboardData
+                      .getData("text")
+                      .replace(/\D/g, "")
+                      .slice(0, 8);
+                    if (!pasted) return;
+                    const next = Array(8).fill("");
+                    for (let j = 0; j < pasted.length; j++) next[j] = pasted[j];
+                    setDigits(next);
+                    inputsRef.current[Math.min(pasted.length, 7)]?.focus();
+                    if (pasted.length === 8) void verifyCode(pasted);
+                  }}
+                  className="otp-input h-12 w-full min-w-0 rounded-xl text-center text-base sm:h-14 sm:text-lg"
                 />
               ))}
             </div>

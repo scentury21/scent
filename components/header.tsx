@@ -58,12 +58,12 @@ export default function Header() {
 
   return (
     <header className="sticky top-0 z-50 border-b border-white/[0.06] bg-ink-950/70 backdrop-blur-xl">
-      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
-        <Link href="/" className="group flex items-center gap-2.5">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-gold-300 to-gold-600 font-display text-lg font-bold text-ink-950 shadow-[0_6px_20px_-6px_rgba(212,169,74,0.7)] transition-transform group-hover:rotate-6">
+      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-2 px-3 sm:px-6">
+        <Link href="/" className="group flex min-w-0 items-center gap-2 sm:gap-2.5">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-gold-300 to-gold-600 font-display text-lg font-bold text-ink-950 shadow-[0_6px_20px_-6px_rgba(212,169,74,0.7)] transition-transform group-hover:rotate-6">
             S
           </span>
-          <span className="font-display text-xl font-bold tracking-[0.14em] text-zinc-100">
+          <span className="truncate font-display text-lg font-bold tracking-[0.12em] text-zinc-100 sm:text-xl sm:tracking-[0.14em]">
             SCENTURY<span className="gold-text">21</span>
           </span>
         </Link>
@@ -80,7 +80,7 @@ export default function Header() {
           ))}
         </nav>
 
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
           <ThemeToggle />
 
           {loggedIn ? (
@@ -110,7 +110,7 @@ export default function Header() {
           <Link
             href="/wishlist"
             aria-label="Wishlist"
-            className="relative flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-zinc-300 transition-all hover:border-gold-400/50 hover:text-gold-200"
+            className="relative flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-zinc-300 transition-all hover:border-gold-400/50 hover:text-gold-200 sm:h-10 sm:w-10"
           >
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21.2l7.8-7.8 1-1a5.5 5.5 0 0 0 0-7.8z" />
@@ -125,7 +125,7 @@ export default function Header() {
           <Link
             href="/cart"
             aria-label="Cart"
-            className="relative flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-zinc-300 transition-all hover:border-gold-400/50 hover:text-gold-200"
+            className="relative flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-zinc-300 transition-all hover:border-gold-400/50 hover:text-gold-200 sm:h-10 sm:w-10"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
@@ -142,7 +142,7 @@ export default function Header() {
           <button
             onClick={() => setOpen(!open)}
             aria-label="Menu"
-            className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-zinc-300 md:hidden"
+            className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-zinc-300 md:hidden sm:h-10 sm:w-10"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               {open ? <path d="M6 6l12 12M18 6L6 18" /> : <path d="M4 7h16M4 12h16M4 17h16" />}

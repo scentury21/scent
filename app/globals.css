@@ -87,6 +87,15 @@ body {
     -webkit-backdrop-filter: blur(14px);
   }
 
+  /* Same surface look as .glass but WITHOUT backdrop-filter — used on
+     containers that hold text <input>s: Android Chrome has a known GPU bug
+     where typed text inside inputs inside a blurred container renders
+     invisible while composing. */
+  .glass-flat {
+    background: color-mix(in srgb, var(--color-white) 4%, transparent);
+    border: 1px solid color-mix(in srgb, var(--color-white) 8%, transparent);
+  }
+
   .gold-text {
     background: linear-gradient(
       120deg,
@@ -141,6 +150,31 @@ body {
   select.input option {
     background: var(--color-ink-800);
     color: var(--color-zinc-200);
+  }
+
+  /* One-time OTP boxes: explicit colors (not theme-dependent light-dark)
+     so the typed digit is ALWAYS visible on any browser/theme, plus a gold
+     caret and autofill-proof text fill. Boxes are dark in both themes. */
+  .otp-input {
+    color-scheme: dark;
+    color: #f6f4ef;
+    -webkit-text-fill-color: #f6f4ef;
+    caret-color: #e2bd66;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 0.75rem;
+    outline: none;
+    font-weight: 600;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+  }
+  .otp-input:focus {
+    border-color: rgba(226, 189, 102, 0.75);
+    background: rgba(255, 255, 255, 0.09);
+    box-shadow: 0 0 0 3px rgba(226, 189, 102, 0.18);
+  }
+  .otp-input::selection {
+    background: rgba(226, 189, 102, 0.45);
+    color: #ffffff;
   }
 
   .chip {

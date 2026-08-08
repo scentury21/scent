@@ -14,8 +14,8 @@ export default function AuthShell({
   children: ReactNode;
 }) {
   return (
-    <div className="relative mx-auto flex min-h-[calc(100vh-4rem)] max-w-6xl items-center justify-center px-4 py-12 sm:px-6">
-      <div className="animate-fade-up grid w-full overflow-hidden rounded-[1.75rem] glass lg:grid-cols-[1fr_1.15fr] lg:shadow-[0_40px_100px_-40px_rgba(0,0,0,0.5)]">
+    <div className="relative mx-auto flex min-h-[calc(100vh-4rem)] min-h-[calc(100dvh-4rem)] max-w-6xl items-center justify-center px-4 py-10 sm:px-6 sm:py-12">
+      <div className="animate-fade-up grid w-full overflow-hidden rounded-[1.75rem] glass-flat lg:grid-cols-[1fr_1.15fr] lg:shadow-[0_40px_100px_-40px_rgba(0,0,0,0.5)]">
         {/* Brand panel — hidden on small screens */}
         <div className="relative hidden flex-col justify-between overflow-hidden border-r border-white/[0.06] p-10 lg:flex">
           <ChromaticWaves
