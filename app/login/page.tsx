@@ -235,7 +235,7 @@ function LoginForm() {
           disabled={otpLoading}
           className="w-full text-center text-xs font-semibold text-zinc-400 transition-colors hover:text-gold-300"
         >
-          {otpLoading ? "Sending code…" : "or Email me a 6-digit login code"}
+          {otpLoading ? "Sending code…" : "or Email me a login code"}
         </button>
       </form>
 

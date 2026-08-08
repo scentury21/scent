@@ -22,7 +22,7 @@ function VerifyOtpForm() {
   const tokenHash = searchParams.get("token_hash");
   const type = searchParams.get("type");
 
-  const [digits, setDigits] = useState<string[]>(Array(6).fill(""));
+  const [digits, setDigits] = useState<string[]>(Array(8).fill(""));
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [resent, setResent] = useState(false);
@@ -63,14 +63,41 @@ function VerifyOtpForm() {
     };
   }, [tokenHash, type, finish]);
 
+  async function verifyCode(code: string) {
+    if (loading) return;
+    setError(null);
+    setLoading(true);
+    const supabase = createClient();
+    const { error } = await supabase.auth.verifyOtp({
+      email,
+      token: code,
+      type: "email",
+    });
+    setLoading(false);
+    if (error) {
+      setError(
+        typeof error.message === "string" && error.message
+          ? error.message
+          : "Something went wrong verifying your code. Please try again."
+      );
+      return;
+    }
+    finish();
+  }
+
   function handleChange(index: number, value: string) {
     const digit = value.replace(/[^0-9]/g, "").slice(-1);
     const next = [...digits];
     next[index] = digit;
     setDigits(next);
 
-    if (digit && index < 5) {
+    if (digit && index < 7) {
       inputsRef.current[index + 1]?.focus();
+    }
+    // Auto-verify once the last box is filled (codes are 6 or 8 digits).
+    if (digit && index === 7) {
+      const code = next.join("");
+      if (code.length === 8) void verifyCode(code);
     }
   }
 
@@ -82,34 +109,12 @@ function VerifyOtpForm() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setError(null);
     const code = digits.join("");
-
-    if (code.length !== 6) {
-      setError("Enter the full 6-digit code.");
+    if (code.length !== 6 && code.length !== 8) {
+      setError("Enter the complete code from the email.");
       return;
     }
-
-    setLoading(true);
-    const supabase = createClient();
-    const { error } = await supabase.auth.verifyOtp({
-      email,
-      token: code,
-      type: "email",
-    });
-
-    setLoading(false);
-
-    if (error) {
-      setError(
-        typeof error.message === "string" && error.message
-          ? error.message
-          : "Something went wrong verifying your code. Please try again."
-      );
-      return;
-    }
-
-    finish();
+    await verifyCode(code);
   }
 
   async function handleResend() {
@@ -144,13 +149,13 @@ function VerifyOtpForm() {
         <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-gold-300 to-gold-600 font-display text-lg font-bold text-ink-950 shadow-[0_6px_20px_-6px_rgba(212,169,74,0.7)]">
           S
         </span>
-        <h1 className="mt-5 font-display text-3xl font-semibold text-zinc-50">
+        <h1 className="mt-6 font-display text-3xl font-semibold text-zinc-50">
           {verifying ? "Confirming…" : "Check your email"}
         </h1>
-        <p className="mt-2 text-sm text-zinc-400">
+        <p className="mt-3 text-sm leading-relaxed text-zinc-400">
           {verifying
             ? "Verifying your link — one moment."
-            : `Enter the 6-digit code we sent to `}
+            : `Enter the code we sent to `}
           {!verifying && (
             <span className="font-semibold text-zinc-200">{email || "your email"}</span>
           )}
@@ -159,7 +164,7 @@ function VerifyOtpForm() {
 
         {!verifying && (
           <form onSubmit={handleSubmit} className="mt-8">
-            <div className="flex justify-center gap-2">
+            <div className="flex w-full justify-center gap-1.5 sm:gap-2">
               {digits.map((digit, i) => (
                 <input
                   key={i}
@@ -172,7 +177,7 @@ function VerifyOtpForm() {
                   value={digit}
                   onChange={(e) => handleChange(i, e.target.value)}
                   onKeyDown={(e) => handleKeyDown(i, e)}
-                  className="input h-14 w-12 text-center text-lg"
+                  className="input h-14 w-full min-w-0 max-w-[3.25rem] flex-1 text-center text-lg"
                 />
               ))}
             </div>
