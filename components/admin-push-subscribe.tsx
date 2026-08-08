@@ -40,6 +40,28 @@ export default function AdminPushSubscribe({
         const reg = await navigator.serviceWorker.ready;
         const sub = await reg.pushManager.getSubscription();
         if (!cancelled) setSubscribed(!!sub);
+        // Self-heal: browsers rotate push endpoints over time (common on
+        // Android after FCM key rotation). Re-save the current endpoint so
+        // background delivery keeps working — no user action needed.
+        if (sub) {
+          const supabase = createClient();
+          const {
+            data: { user },
+          } = await supabase.auth.getUser();
+          if (user) {
+            const json = sub.toJSON() as { keys?: { p256dh?: string; auth?: string } };
+            await supabase.from("push_subscriptions").upsert(
+              {
+                user_id: user.id,
+                endpoint: sub.endpoint,
+                p256dh: json.keys?.p256dh ?? "",
+                auth: json.keys?.auth ?? "",
+                user_agent: navigator.userAgent,
+              },
+              { onConflict: "endpoint" }
+            );
+          }
+        }
       } catch {
         /* service worker unavailable — leave as-is */
       }
@@ -129,6 +151,45 @@ export default function AdminPushSubscribe({
     }
   }
 
+  /** Sends a real push through the backend so the admin can verify delivery
+   *  with the page/tab closed (Android FCM + service worker, no open tab). */
+  async function sendTest() {
+    setBusy(true);
+    setMessage(null);
+    try {
+      const res = await fetch("/api/push-notify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          order: {
+            id: `TEST-${Date.now().toString(36).toUpperCase()}`,
+            customer: { name: "Self-test" },
+            total: 0,
+            currency: "NGN",
+          },
+        }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        sent?: number;
+        error?: string;
+      };
+      if (data.ok && (data.sent ?? 0) > 0) {
+        setMessage(
+          `✅ Test push sent to ${data.sent} device(s) — now close this tab on your phone; it should still arrive.`
+        );
+      } else if (data.ok) {
+        setMessage("Test processed, but 0 devices received it — tap Enable notifications first.");
+      } else {
+        setMessage(`Test failed: ${data.error ?? "unknown error"}`);
+      }
+    } catch {
+      setMessage("Could not reach the push service.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (!supported) {
     return (
       <div className="glass rounded-2xl p-5">
@@ -182,10 +243,22 @@ export default function AdminPushSubscribe({
           Notifications are blocked for this site. Allow them in the site settings, then tap enable again.
         </p>
       )}
+      <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
+        <button onClick={sendTest} disabled={busy} className="btn btn-ghost px-4 py-2 text-xs">
+          {busy ? "Sending…" : "⚡ Send test notification"}
+        </button>
+        <p className="text-[11px] leading-relaxed text-zinc-500">
+          Goes through the backend — close this tab on your phone and the notification should still pop up
+          (service worker + FCM, no open page needed).
+        </p>
+      </div>
       {message && (
         <p
           className={`mt-3 text-xs ${
-            message.includes("enabled") || message.includes("disabled")
+            message.includes("enabled") ||
+            message.includes("disabled") ||
+            message.includes("✅") ||
+            message.includes("sent")
               ? "text-emerald-300"
               : "text-amber-300"
           }`}

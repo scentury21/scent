@@ -28,6 +28,7 @@ self.addEventListener("push", (event) => {
       badge: "/icon.svg",
       tag: "new-order",
       renotify: true,
+      vibrate: [200, 100, 200],
       data: { url: data.url },
     })
   );

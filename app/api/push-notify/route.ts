@@ -106,7 +106,14 @@ export async function POST(req: Request) {
         try {
           await webpush.sendNotification(
             { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-            payload
+            payload,
+            {
+              // High urgency + 24h TTL: Android/FCM delivers promptly even in
+              // Doze / battery-restricted background states (the service worker
+              // receives it with the tab closed, no open page required).
+              urgency: "high",
+              TTL: 86400,
+            }
           );
           sent += 1;
         } catch (err) {
