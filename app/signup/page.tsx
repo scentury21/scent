@@ -98,13 +98,12 @@ function SignupForm() {
     setLoading(true);
 
     const supabase = createClient();
-    const { data, error } = await supabase.auth.signUp({
+    const { error } = await supabase.auth.signInWithOtp({
       email,
-      password,
       options: {
+        // Creates the account on first OTP sign-in with the entered name.
+        shouldCreateUser: true,
         data: { name },
-        // The confirmation link lands back on THIS app (not a Supabase
-        // placeholder), so clicking it in the email confirms the account.
         emailRedirectTo: `${window.location.origin}/auth/callback`,
       },
     });
@@ -117,14 +116,8 @@ function SignupForm() {
       return;
     }
 
-    // If the project has "Confirm email" turned OFF, signUp returns a session
-    // immediately — no OTP needed, go straight in.
-    if (data.session) {
-      router.push(redirectTo);
-      router.refresh();
-      return;
-    }
-
+    // A 6-digit code (and a link) is emailed — the user types the code on
+    // the next page to finish signing up.
     router.push(`/verify-otp?email=${encodeURIComponent(email)}`);
   }
 

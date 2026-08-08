@@ -60,6 +60,7 @@ function LoginForm() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [otpLoading, setOtpLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -112,6 +113,31 @@ function LoginForm() {
       );
     } finally {
       setGoogleLoading(false);
+    }
+  }
+
+  async function handleOtpLogin() {
+    setError(null);
+    setOtpLoading(true);
+    try {
+      if (!email.trim()) {
+        setError("Enter your email first — the code will be sent there.");
+        return;
+      }
+      const supabase = createClient();
+      const { error } = await supabase.auth.signInWithOtp({
+        email,
+        options: { shouldCreateUser: false },
+      });
+      if (error) {
+        setError(error.message);
+        return;
+      }
+      router.push(`/verify-otp?email=${encodeURIComponent(email)}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not request a login code.");
+    } finally {
+      setOtpLoading(false);
     }
   }
 
@@ -201,6 +227,15 @@ function LoginForm() {
           ) : (
             "Sign in"
           )}
+        </button>
+
+        <button
+          type="button"
+          onClick={handleOtpLogin}
+          disabled={otpLoading}
+          className="w-full text-center text-xs font-semibold text-zinc-400 transition-colors hover:text-gold-300"
+        >
+          {otpLoading ? "Sending code…" : "or Email me a 6-digit login code"}
         </button>
       </form>
 

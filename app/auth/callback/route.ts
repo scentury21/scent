@@ -48,7 +48,7 @@ export async function GET(request: Request) {
     const supabase = await createClient();
     const { error: tokenError } = await supabase.auth.verifyOtp({
       token_hash: tokenHash,
-      type: (tokenType as "signup" | "email" | "recovery") || "signup",
+      type: (tokenType as "signup" | "email" | "recovery") || "email",
     });
     if (tokenError) {
       return toLogin(

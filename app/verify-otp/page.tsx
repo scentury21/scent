@@ -44,7 +44,7 @@ function VerifyOtpForm() {
       setVerifying(true);
       const { error: err } = await supabase.auth.verifyOtp({
         token_hash: tokenHash,
-        type: (type as "signup" | "email" | "recovery") || "signup",
+        type: (type as "signup" | "email" | "recovery") || "email",
       });
       if (cancelled) return;
       if (err) {
@@ -95,7 +95,7 @@ function VerifyOtpForm() {
     const { error } = await supabase.auth.verifyOtp({
       email,
       token: code,
-      type: "signup",
+      type: "email",
     });
 
     setLoading(false);
@@ -115,10 +115,12 @@ function VerifyOtpForm() {
   async function handleResend() {
     setError(null);
     const supabase = createClient();
-    const { error } = await supabase.auth.resend({
-      type: "signup",
+    // Re-sending the OTP = calling signInWithOtp again (Supabase has no
+    // dedicated email-OTP resend; it emails the same code).
+    const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
+        shouldCreateUser: false,
         emailRedirectTo: `${window.location.origin}/auth/callback`,
       },
     });
