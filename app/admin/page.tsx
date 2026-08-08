@@ -5,6 +5,13 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { formatNGN } from "@/lib/currency";
 import AdminPushSubscribe from "@/components/admin-push-subscribe";
+import PwaInstall from "@/components/pwa-install";
+import OneSignalBridge from "@/components/onesignal-bridge";
+
+// When OneSignal is configured it replaces the self-hosted web push below,
+// so the admin never gets double notifications. The classic card stays visible
+// as a fallback channel (important if only the OneSignal app id is set).
+const ONESIGNAL_ENABLED = Boolean(process.env.NEXT_PUBLIC_ONESIGNAL_APP_ID);
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -99,7 +106,9 @@ export default function AdminDashboard() {
       )}
 
       {/* Push notification opt-in */}
-      <AdminPushSubscribe />
+      <AdminPushSubscribe managedPush={ONESIGNAL_ENABLED} />
+      <PwaInstall />
+      <OneSignalBridge />
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">

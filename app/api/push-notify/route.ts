@@ -29,10 +29,52 @@ export async function POST(req: Request) {
   const vapidPublic = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? "";
   const vapidPrivate = process.env.VAPID_PRIVATE_KEY ?? "";
   const vapidSubject = process.env.VAPID_SUBJECT ?? "mailto:hello@scentury21.com";
+  const osAppId = process.env.ONESIGNAL_APP_ID ?? "";
+  const osKey = process.env.ONESIGNAL_REST_API_KEY ?? "";
 
-  if (!serviceKey || serviceKey.includes("your_") || !supabaseUrl || !vapidPublic || !vapidPrivate) {
+  const onesignalReady = Boolean(osAppId && osKey);
+  const webpushReady = Boolean(vapidPublic && vapidPrivate);
+
+  if (!serviceKey || serviceKey.includes("your_") || !supabaseUrl || (!webpushReady && !onesignalReady)) {
     console.log("[push-notify] demo mode — order would push to admins:", order.id);
     return NextResponse.json({ ok: true, demo: true, sent: 0, orderId: order.id });
+  }
+
+  // OneSignal managed layer — used when configured; on failure it falls back
+  // to the self-hosted web-push below (never double notifications).
+  if (onesignalReady) {
+    try {
+      const res = await fetch("https://api.onesignal.com/notifications", {
+        method: "POST",
+        headers: {
+          Authorization: `Basic ${osKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          app_id: osAppId,
+          contents: { en: `${order.id} · ${order.customer.name} · ${order.total} ${order.currency}` },
+          headings: { en: "🛍 New order placed" },
+          url: "/admin/orders",
+          filters: [{ field: "tag", key: "scentury_admin", relation: "=", value: "true" }],
+        }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { recipients?: number; errors?: string[] };
+      if (res.ok) {
+        return NextResponse.json({
+          ok: true,
+          oneSignal: true,
+          recipients: data.recipients ?? 0,
+          orderId: order.id,
+        });
+      }
+      console.error(
+        "[push-notify] onesignal send failed",
+        data.errors ?? res.status,
+        "— falling back to web push"
+      );
+    } catch (err) {
+      console.error("[push-notify] onesignal error", err, "— falling back to web push");
+    }
   }
 
   try {

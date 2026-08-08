@@ -14,7 +14,11 @@ function urlBase64ToUint8Array(base64: string): Uint8Array<ArrayBuffer> {
   return bytes;
 }
 
-export default function AdminPushSubscribe() {
+export default function AdminPushSubscribe({
+  managedPush = false,
+}: {
+  managedPush?: boolean;
+}) {
   const supported =
     typeof window !== "undefined" &&
     "serviceWorker" in navigator &&
@@ -133,6 +137,12 @@ export default function AdminPushSubscribe() {
           Push notifications are not available here — use a modern browser over HTTPS, or set{" "}
           <code className="text-gold-300">NEXT_PUBLIC_VAPID_PUBLIC_KEY</code> in your environment.
         </p>
+        {managedPush && (
+          <p className="mt-2 text-[11px] leading-relaxed text-amber-300/90">
+            OneSignal is configured for managed delivery — this classic browser-push toggle stays as the
+            fallback channel.
+          </p>
+        )}
       </div>
     );
   }
@@ -145,6 +155,12 @@ export default function AdminPushSubscribe() {
           <p className="mt-1 text-xs text-zinc-500">
             Get a browser notification the moment a customer places an order.
           </p>
+          {managedPush && (
+            <p className="mt-2 text-[11px] leading-relaxed text-amber-300/90">
+              OneSignal is configured for managed delivery — this toggle is the fallback channel and won&apos;t
+              double-send.
+            </p>
+          )}
         </div>
         {subscribed ? (
           <button

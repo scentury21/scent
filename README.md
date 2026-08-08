@@ -309,3 +309,35 @@ list in order, then falls back to the next provider:
 | NVIDIA | meta/llama-3.3-70b-instruct → nemotron-70b → gemma-4-31b | active (needs credits) |
 | Cerebras | — | REMOVED — account says payment required (402) |
 | HuggingFace | — | REMOVED — token lacks Inference Providers permission |
+
+### 14 · Push notifications that work with the browser closed (PWA + OneSignal)
+
+No web-push service can notify you when the desktop browser is *fully* closed
+(a closed browser cannot render notifications — that is a platform rule).
+The real fix is two channels that do not depend on an open browser:
+
+**A · Installable PWA (free, no accounts)**
+- Site is now installable: manifest at /manifest.webmanifest, icons in
+  public/icons (icon-192, icon-512, apple-touch-icon).
+- On the admin dashboard an **"Install Scentury21"** button appears
+  (beforeinstallprompt). Install it on your Android home screen.
+- Once installed, order push notifications arrive via FCM **even when Chrome
+  is closed** (as long as the browser isn't force-stopped).
+- Desktop workaround: Chrome → Settings → System → "Continue running
+  background apps when Google Chrome is closed".
+
+**B · OneSignal managed layer (optional, gated by env)**
+Requires a free OneSignal account (dashboard.onesignal.com → Add app). Then:
+```
+Vercel env (Production + Preview):
+  NEXT_PUBLIC_ONESIGNAL_APP_ID   = <your app id from OneSignal settings>
+  ONESIGNAL_APP_ID               = same value
+  ONESIGNAL_REST_API_KEY         = <REST API Key from OneSignal settings>
+```
+- components/onesignal-bridge.tsx initialises the OneSignal SDK on the admin
+  dashboard and tags the admin `scentury_admin`.
+- public/OneSignalSDKWorker.js is the required OneSignal service worker.
+- app/api/push-notify/route.ts uses OneSignal when configured, otherwise it
+  falls back to the self-hosted web-push path — never double notifications.
+- Desktop browser-closed still requires the "background apps" setting above;
+  on Android the installed PWA receives pushes with Chrome closed.
