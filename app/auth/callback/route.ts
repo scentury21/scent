@@ -22,11 +22,15 @@ export async function GET(request: Request) {
   const error = searchParams.get("error");
   const errorDescription = searchParams.get("error_description");
 
-  // Where the user wanted to go — stashed in a short-lived cookie by the
-  // login/signup page before starting the OAuth flow. Avoids nested query
-  // strings (a common cause of mangled redirect URLs / blank pages).
+  // Where the user wanted to go. Two sources: the ?next= query param (used by
+  // the password-reset email, which points here with next=/reset-password) or a
+  // short-lived cookie stashed by the login/signup page before OAuth.
   const cookieStore = await cookies();
-  const next = safeRedirect(cookieStore.get("scentury-next")?.value ?? null);
+  const next = safeRedirect(
+    searchParams.get("next") ??
+      cookieStore.get("scentury-next")?.value ??
+      null
+  );
 
   const toLogin = (message: string) => {
     const url = new URL("/login", origin);

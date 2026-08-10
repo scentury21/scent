@@ -361,3 +361,31 @@ Vercel env (Production + Preview):
 - Deeper chat memory: 120 turns retained, 16 recent injected.
 - Try: "remember that my VIP customer is Ada", "what do you remember?",
   "forget vip_ada".
+
+### 17 · Forgot password (standard link flow)
+
+- Login page has a "Forgot password?" link.
+- /forgot-password calls resetPasswordForEmail with redirectTo
+  /auth/callback?next=/reset-password.
+- The callback exchanges the token and sends the user to /reset-password,
+  where they set a new password via updateUser.
+- Dashboard: Authentication > Emails > Templates > Reset Password must
+  contain {{ .ConfirmationURL }}, and /reset-password must be allowed in
+  Authentication > URL Configuration > Redirect URLs.
+
+### 18 · 3D perfume bottle on the product page
+
+- New 2D/3D toggle on the product detail page. 3D uses Google model-viewer
+  (npm @google/model-viewer), lazy-loaded via next/dynamic ssr:false so the
+  homepage bundle stays small.
+- Model: public/models/perfume-bottle.glb (CC-BY 3.0, Poly by Google via
+  poly.pizza). Attribution shown under the 3D view. Swap the file to use a
+  model of the real bottle (generate with Meshy/Tripo from a photo).
+
+### 19 · UI polish batch
+
+- Toasts: event-driven showToast() anywhere; host mounted in root layout.
+- Cart icon bounces when an item is added.
+- Mobile menu is now a slide-up bottom sheet with backdrop + scroll lock.
+- Home hero gained a scrolling notes marquee.
+- Checkout gained a Cart > Details > Payment step indicator.

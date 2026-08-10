@@ -5,6 +5,7 @@ import { CartProvider } from "@/lib/cart";
 import Header from "@/components/header";
 import Footer from "@/components/footer";
 import ChromaticWaves from "@/components/chromatic-waves";
+import ToastHost from "@/components/toast";
 
 const cormorant = Cormorant_Garamond({
   subsets: ["latin"],
@@ -74,6 +75,7 @@ export default function RootLayout({
           <Header />
           <main className="relative z-10 flex-1">{children}</main>
           <Footer />
+          <ToastHost />
         </CartProvider>
       </body>
     </html>

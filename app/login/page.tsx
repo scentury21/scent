@@ -219,6 +219,15 @@ function LoginForm() {
           </div>
         </div>
 
+        <div className="-mt-1 flex justify-end">
+          <Link
+            href="/forgot-password"
+            className="text-xs font-semibold text-zinc-400 transition-colors hover:text-gold-300"
+          >
+            Forgot password?
+          </Link>
+        </div>
+
         <button type="submit" disabled={loading} className="btn btn-gold w-full py-3.5">
           {loading ? (
             <>

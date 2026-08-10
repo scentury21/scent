@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useCart } from "@/lib/cart";
 import { isWishlisted, toggleWishlist } from "@/lib/store";
+import { showToast } from "./toast";
 import { useEffect, useState as useWish } from "react";
 
 export default function AddToCartPanel({
@@ -20,12 +21,17 @@ export default function AddToCartPanel({
   const [wished, setWished] = useWish(false);
 
   useEffect(() => {
-    setWished(isWishlisted(productId));
-  }, [productId]);
+    Promise.resolve().then(() => setWished(isWishlisted(productId)));
+  }, [productId, setWished]);
 
   const handleAdd = () => {
     addItem(productId, qty);
     setAdded(true);
+    window.dispatchEvent(new Event("scentury:cart-added"));
+    showToast(
+      qty > 1 ? `${qty} × added to cart` : "Added to cart",
+      "success"
+    );
     window.setTimeout(() => setAdded(false), 1500);
   };
 

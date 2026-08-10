@@ -80,6 +80,33 @@ export default async function HomePage() {
         </div>
       </section>
 
+      {/* ------------------------------ MARQUEE ----------------------------- */}
+      <div className="relative -mx-4 overflow-hidden border-y border-gold-400/15 bg-ink-900/60 py-3.5 sm:-mx-6">
+        <div className="marquee-track">
+          {[0, 1].map((dup) => (
+            <div
+              key={dup}
+              className="flex shrink-0 items-center gap-8 pr-8"
+              aria-hidden={dup === 1}
+            >
+              {["OUD", "DAMASK ROSE", "SAFFRON", "AMBER", "VANILLA", "SANDALWOOD", "MUSK", "PATCHOULI"].map(
+                (n) => (
+                  <span
+                    key={n}
+                    className="flex items-center gap-8 whitespace-nowrap font-display text-xs font-semibold uppercase tracking-[0.3em] text-zinc-500 sm:text-sm"
+                  >
+                    {n}
+                    <span className="text-gold-400/70" aria-hidden>
+                      ✦
+                    </span>
+                  </span>
+                )
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
       {/* --------------------------- BESTSELLERS --------------------------- */}
       {BEST_SELLERS.length > 0 && (
       <section className="mt-20">

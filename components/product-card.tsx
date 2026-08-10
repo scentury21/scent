@@ -8,6 +8,7 @@ import { isWishlisted, toggleWishlist } from "@/lib/store";
 import { useEffect, useState } from "react";
 import ProductBottle from "./product-bottle";
 import Stars from "./stars";
+import { showToast } from "./toast";
 
 const TAG_STYLES: Record<NonNullable<Product["tag"]>, string> = {
   Bestseller: "bg-gold-400/15 text-gold-200 border-gold-400/40",
@@ -36,6 +37,8 @@ export default function ProductCard({
     e.stopPropagation();
     addItem(product.id, 1);
     setAdded(true);
+    window.dispatchEvent(new Event("scentury:cart-added"));
+    showToast(`${product.name} added to cart`);
     window.setTimeout(() => setAdded(false), 1400);
   };
 

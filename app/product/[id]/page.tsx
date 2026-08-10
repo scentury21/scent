@@ -3,8 +3,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getActiveProducts, getDbProduct, getProductReviews } from "@/lib/products-server";
 import { formatNGN, nairaToUsd, formatDate } from "@/lib/currency";
-import ProductBottle from "@/components/product-bottle";
 import ProductCard from "@/components/product-card";
+import ProductVisual from "@/components/product-visual";
 import Stars from "@/components/stars";
 import AddToCartPanel from "@/components/add-to-cart";
 import ReviewForm from "@/components/review-form";
@@ -57,38 +57,8 @@ export default async function ProductPage({ params }: { params: Promise<Params> 
       </nav>
 
       <div className="grid gap-10 lg:grid-cols-2">
-        {/* Art — uploaded photo takes priority, otherwise the bottle art */}
-        <div className="relative">
-          <div
-            className="relative flex h-[420px] items-center justify-center overflow-hidden rounded-[2rem] border border-white/[0.06] sm:h-[520px]"
-            style={{
-              background: `radial-gradient(120% 100% at 50% 0%, ${product.palette[0]}30 0%, transparent 60%), linear-gradient(180deg, rgba(255,255,255,0.04), rgba(0,0,0,0.25))`,
-            }}
-          >
-            <div
-              className="absolute inset-0 opacity-40 blur-3xl"
-              style={{
-                background: `radial-gradient(60% 60% at 50% 55%, ${product.palette[1]}55, transparent 70%)`,
-              }}
-            />
-            {product.image ? (
-              <img
-                src={product.image}
-                alt={product.name}
-                className="relative h-full w-full object-cover transition-transform duration-700"
-              />
-            ) : (
-              <div className="animate-floaty relative drop-shadow-2xl">
-                <ProductBottle product={product} className="h-80 w-auto sm:h-[400px]" />
-              </div>
-            )}
-            {product.tag && (
-              <span className="absolute left-4 top-4 rounded-full border border-gold-400/40 bg-gold-400/15 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-gold-200">
-                {product.tag}
-              </span>
-            )}
-          </div>
-        </div>
+        {/* Art — 2D bottle or photo, with a lazy-loaded interactive 3D mode */}
+        <ProductVisual product={product} />
 
         {/* Details */}
         <div>

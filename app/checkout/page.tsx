@@ -386,6 +386,41 @@ export default function CheckoutPage() {
         Delivery to 40+ countries · precise location, no maps required
       </p>
 
+      {/* Step indicator */}
+      <div className="mt-6 flex flex-wrap items-center gap-2 text-xs">
+        {[
+          { label: "Cart", href: "/cart" as string | undefined, done: true },
+          { label: "Details", href: undefined, done: true },
+          { label: "Payment", href: undefined, done: false },
+        ].map((s, i) => (
+          <div key={s.label} className="flex items-center gap-2">
+            {i > 0 && <span className="h-px w-6 bg-gold-400/30" />}
+            <span
+              className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 font-semibold ${
+                s.done
+                  ? "border-gold-400/30 bg-gold-400/10 text-gold-200"
+                  : "border-white/10 bg-white/[0.03] text-zinc-400"
+              }`}
+            >
+              <span
+                className={`flex h-4 w-4 items-center justify-center rounded-full text-[9px] ${
+                  s.done ? "bg-gold-400/20" : "bg-white/5"
+                }`}
+              >
+                {i + 1}
+              </span>
+              {s.href ? (
+                <Link href={s.href} className="transition-colors hover:text-gold-200">
+                  {s.label}
+                </Link>
+              ) : (
+                s.label
+              )}
+            </span>
+          </div>
+        ))}
+      </div>
+
       <div className="mt-8 grid gap-8 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
           {/* Contact */}
