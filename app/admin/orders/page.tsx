@@ -85,7 +85,7 @@ export default function AdminOrdersPage() {
     if (data.emailSent) {
       showToast("Status updated — customer emailed ✉️", "success");
     } else if (data.emailNote) {
-      showToast("Status updated — email skipped", "info");
+      showToast(`Status updated — email skipped: ${data.emailNote}`, "info");
     } else {
       showToast("Status updated", "success");
     }

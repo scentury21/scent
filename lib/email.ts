@@ -41,6 +41,13 @@ function looksReal(key: string | undefined): key is string {
 
 export async function sendMail({ to, subject, html, from }: Mail): Promise<SendMailResult> {
   const brevoKey = process.env.BREVO_API_KEY;
+  if (brevoKey && brevoKey.startsWith("xsmtpsib-")) {
+    return {
+      ok: false,
+      reason:
+        "BREVO_API_KEY is an SMTP key (xsmtpsib-...) — the REST API needs an API key (xkeysib-...). Generate one at app.brevo.com → Settings → SMTP & API → API Keys tab.",
+    };
+  }
   if (looksReal(brevoKey)) {
     const sender = parseSender(from ?? process.env.BREVO_SENDER_EMAIL ?? process.env.EMAIL_FROM);
     if (!sender.email) {
