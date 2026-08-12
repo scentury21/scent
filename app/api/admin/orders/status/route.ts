@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
-import { resend } from "@/lib/resend";
-import { formatNGN } from "@/lib/currency";
+import { sendMail } from "@/lib/email";
 
 /**
  * Server-side order status update (admin only).
@@ -110,18 +109,11 @@ export async function POST(req: Request) {
   let emailSent = false;
   let emailNote: string | undefined;
   if (order.customer_email) {
-    if (!resend) {
-      emailNote = "No RESEND_API_KEY configured — customer email skipped. Add it in Vercel env.";
-    } else {
-      const trackUrl = process.env.NEXT_PUBLIC_SITE_URL
-        ? `${process.env.NEXT_PUBLIC_SITE_URL}/track`
-        : "/track";
-      const label = STATUS_LABEL[status] ?? status;
-      const { error: mailError } = await resend.emails.send({
-        from: process.env.EMAIL_FROM ?? "SCENTURY21 <onboarding@resend.dev>",
-        to: order.customer_email,
-        subject: `Your SCENTURY21 order ${order.order_number} is now ${label}`,
-        html: `<!doctype html>
+    const trackUrl = process.env.NEXT_PUBLIC_SITE_URL
+      ? `${process.env.NEXT_PUBLIC_SITE_URL}/track`
+      : "/track";
+    const label = STATUS_LABEL[status] ?? status;
+    const html = `<!doctype html>
 <html>
 <body style="margin:0;padding:0;background:#08070f;font-family:Arial,Helvetica,sans-serif">
   <div style="max-width:560px;margin:32px auto;background:#0d0b18;border:1px solid #2a2342;border-radius:16px;padding:32px">
@@ -133,14 +125,19 @@ export async function POST(req: Request) {
     <p style="color:#71717a;font-size:12px;margin:28px 0 0">Scentury21 · The House of Fine Fragrance</p>
   </div>
 </body>
-</html>`,
-      });
-      if (mailError) {
-        emailNote = `Status updated, but the customer email failed (${mailError.message}). Check EMAIL_FROM and Resend domain verification.`;
-        console.error("[admin/orders/status] email error", mailError);
-      } else {
-        emailSent = true;
-      }
+</html>`;
+
+    const mail = await sendMail({
+      to: order.customer_email,
+      subject: `Your SCENTURY21 order ${order.order_number} is now ${label}`,
+      html,
+      from: process.env.EMAIL_FROM,
+    });
+    if (mail.ok) {
+      emailSent = true;
+    } else {
+      emailNote = `Status updated, but the customer email failed (${mail.reason})`;
+      console.error("[admin/orders/status] email error", mail.reason);
     }
   }
 

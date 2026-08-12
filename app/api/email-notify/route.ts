@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
-import { resend } from "@/lib/resend";
+import { NO_PROVIDER_REASON, sendMail } from "@/lib/email";
 import { formatNGN } from "@/lib/currency";
 
 /**
- * Sends customer emails via Resend:
+ * Sends customer emails (Brevo first, Resend fallback — see lib/email.ts):
  *   POST { order }          → order confirmation
  *   POST { order, status }  → status update ("your order is now shipped")
  *
- * Requires RESEND_API_KEY (server-side). Without it, logs and returns (demo
- * mode), matching the other notifiers.
+ * Without a configured provider it logs and returns (demo mode), matching
+ * the other notifiers.
  */
 
 type EmailOrder = {
@@ -98,30 +98,29 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: "missing order / customer email" }, { status: 400 });
   }
 
-  if (!resend) {
-    console.log(
-      `[email-notify] demo mode — ${status ? `status (${status})` : "confirmation"} email for ${order.customer_email}`
-    );
-    return NextResponse.json({ ok: true, demo: true, sent: false });
-  }
-
   try {
     const subject = status
       ? `Your SCENTURY21 order ${orderNumber(order)} is now ${STATUS_LABEL[status] ?? status}`
       : `Order confirmed — ${orderNumber(order)} (SCENTURY21)`;
 
-    const { error } = await resend.emails.send({
-      from: process.env.EMAIL_FROM ?? "SCENTURY21 <onboarding@resend.dev>",
+    const mail = await sendMail({
       to: order.customer_email,
       subject,
       html: buildHtml(order, status),
+      from: process.env.EMAIL_FROM,
     });
 
-    if (error) {
-      console.error("[email-notify] send error", error);
-      return NextResponse.json({ ok: false, sent: false, error: error.message }, { status: 502 });
+    if (mail.ok) {
+      return NextResponse.json({ ok: true, sent: true });
     }
-    return NextResponse.json({ ok: true, sent: true });
+    if (mail.reason === NO_PROVIDER_REASON) {
+      console.log(
+        `[email-notify] demo mode — ${status ? `status (${status})` : "confirmation"} email for ${order.customer_email}`
+      );
+      return NextResponse.json({ ok: true, demo: true, sent: false });
+    }
+    console.error("[email-notify] send error", mail.reason);
+    return NextResponse.json({ ok: false, sent: false, error: mail.reason }, { status: 502 });
   } catch (err) {
     console.error("[email-notify] error", err);
     return NextResponse.json({ ok: false, sent: false, error: "email send error" }, { status: 502 });
