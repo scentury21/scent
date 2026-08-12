@@ -1,32 +1,56 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 
 const THEME_KEY = "scentury-theme";
 const COLORS = { dark: "#08070f", light: "#faf6ef" };
 
-export default function ThemeToggle({ compact = false }: { compact?: boolean }) {
-  const [dark, setDark] = useState(false);
+const listeners = new Set<() => void>();
 
-  useEffect(() => {
-    setDark(document.documentElement.classList.contains("dark"));
-  }, []);
+/** Shared theme primitives so the icon toggle and the Settings segmented
+ *  control stay in sync. Client-side only. */
+export function isDarkTheme(): boolean {
+  return (
+    typeof document !== "undefined" &&
+    document.documentElement.classList.contains("dark")
+  );
+}
 
-  const apply = (next: boolean) => {
-    setDark(next);
-    document.documentElement.classList.toggle("dark", next);
-    try {
-      localStorage.setItem(THEME_KEY, next ? "dark" : "light");
-    } catch {
-      /* private mode — preference just won't persist */
-    }
-    const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute("content", next ? COLORS.dark : COLORS.light);
+function subscribeTheme(cb: () => void): () => void {
+  listeners.add(cb);
+  return () => {
+    listeners.delete(cb);
   };
+}
+
+function serverSnapshot() {
+  return true; // SSR defaults to dark; hydrated value corrects on mount
+}
+
+/** Reactive dark-mode flag — re-renders every component that uses it
+ *  whenever the theme changes (from anywhere). */
+export function useTheme(): boolean {
+  return useSyncExternalStore(subscribeTheme, isDarkTheme, serverSnapshot);
+}
+
+export function applyTheme(next: boolean) {
+  document.documentElement.classList.toggle("dark", next);
+  try {
+    localStorage.setItem(THEME_KEY, next ? "dark" : "light");
+  } catch {
+    /* private mode — preference just won't persist */
+  }
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute("content", next ? COLORS.dark : COLORS.light);
+  listeners.forEach((l) => l());
+}
+
+export default function ThemeToggle({ compact = false }: { compact?: boolean }) {
+  const dark = useTheme();
 
   return (
     <button
-      onClick={() => apply(!dark)}
+      onClick={() => applyTheme(!dark)}
       role="switch"
       aria-checked={dark}
       aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}

@@ -105,17 +105,23 @@ export async function POST(req: Request) {
     );
   }
 
-  // 4) Email the customer about their new status (best-effort).
-  if (resend && order.customer_email) {
-    const trackUrl = process.env.NEXT_PUBLIC_SITE_URL
-      ? `${process.env.NEXT_PUBLIC_SITE_URL}/track`
-      : "/track";
-    const label = STATUS_LABEL[status] ?? status;
-    const { error: mailError } = await resend.emails.send({
-      from: process.env.EMAIL_FROM ?? "SCENTURY21 <onboarding@resend.dev>",
-      to: order.customer_email,
-      subject: `Your SCENTURY21 order ${order.order_number} is now ${label}`,
-      html: `<!doctype html>
+  // 4) Email the customer about their new status (best-effort). The response
+  // reports whether the email actually went out so the admin UI can say so.
+  let emailSent = false;
+  let emailNote: string | undefined;
+  if (order.customer_email) {
+    if (!resend) {
+      emailNote = "No RESEND_API_KEY configured — customer email skipped. Add it in Vercel env.";
+    } else {
+      const trackUrl = process.env.NEXT_PUBLIC_SITE_URL
+        ? `${process.env.NEXT_PUBLIC_SITE_URL}/track`
+        : "/track";
+      const label = STATUS_LABEL[status] ?? status;
+      const { error: mailError } = await resend.emails.send({
+        from: process.env.EMAIL_FROM ?? "SCENTURY21 <onboarding@resend.dev>",
+        to: order.customer_email,
+        subject: `Your SCENTURY21 order ${order.order_number} is now ${label}`,
+        html: `<!doctype html>
 <html>
 <body style="margin:0;padding:0;background:#08070f;font-family:Arial,Helvetica,sans-serif">
   <div style="max-width:560px;margin:32px auto;background:#0d0b18;border:1px solid #2a2342;border-radius:16px;padding:32px">
@@ -128,11 +134,15 @@ export async function POST(req: Request) {
   </div>
 </body>
 </html>`,
-    });
-    if (mailError) {
-      console.error("[admin/orders/status] email error", mailError);
+      });
+      if (mailError) {
+        emailNote = `Status updated, but the customer email failed (${mailError.message}). Check EMAIL_FROM and Resend domain verification.`;
+        console.error("[admin/orders/status] email error", mailError);
+      } else {
+        emailSent = true;
+      }
     }
   }
 
-  return NextResponse.json({ ok: true, order });
+  return NextResponse.json({ ok: true, order, emailSent, emailNote });
 }

@@ -7,6 +7,7 @@ import { useCart } from "@/lib/cart";
 import { getWishlist } from "@/lib/store";
 import { createClient } from "@/lib/supabase/client";
 import ThemeToggle from "./theme-toggle";
+import ThemeSwitch from "./theme-switch";
 
 const NAV = [
   { href: "/", label: "Home" },
@@ -89,7 +90,7 @@ export default function Header() {
 
   return (
     <>
-    <header className="sticky top-0 z-50 border-b border-white/[0.06] bg-ink-950/70 backdrop-blur-xl">
+    <header className="sticky top-0 z-[70] border-b border-white/[0.06] bg-ink-950/70 backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-2 px-3 sm:px-6">
         <Link href="/" className="group flex min-w-0 items-center gap-2 sm:gap-2.5">
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-gold-300 to-gold-600 font-display text-lg font-bold text-ink-950 shadow-[0_6px_20px_-6px_rgba(212,169,74,0.7)] transition-transform group-hover:rotate-6">
@@ -174,76 +175,89 @@ export default function Header() {
           <button
             onClick={() => setOpen(!open)}
             aria-label="Menu"
+            aria-expanded={open}
+            aria-haspopup="dialog"
             className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-zinc-300 md:hidden sm:h-10 sm:w-10"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               {open ? <path d="M6 6l12 12M18 6L6 18" /> : <path d="M4 7h16M4 12h16M4 17h16" />}
             </svg>
-          </button>
-        </div>
+          </button>        </div>
       </div>
+    </header>
 
       {open && (
         <>
-        <button
-          aria-label="Close menu"
-          onClick={() => setOpen(false)}
-          className="sheet-backdrop fixed inset-0 z-[55] bg-black/60 md:hidden"
-        />
-        <nav
-          role="dialog"
-          aria-modal="true"
-          aria-label="Menu"
-          className="sheet-in fixed inset-x-0 bottom-0 z-[60] max-h-[85dvh] overflow-y-auto rounded-t-3xl border-t border-white/10 bg-ink-900/95 px-4 pb-8 pt-3 md:hidden"
-        >
-          {NAV.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={() => setOpen(false)}
-              className="block rounded-xl px-4 py-3 text-sm font-medium text-zinc-200 hover:bg-white/[0.06] hover:text-gold-200"
-            >
-              {item.label}
-            </Link>
-          ))}
-          <div className="mt-3 space-y-2 border-t border-white/[0.06] px-4 pt-3">
-            {loggedIn ? (
-              <button
-                onClick={() => {
-                  setOpen(false);
-                  void handleSignOut();
-                }}
-                className="w-full rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm font-semibold text-zinc-200 transition-colors hover:border-red-400/40 hover:text-red-300"
+          <button
+            aria-label="Close menu"
+            onClick={() => setOpen(false)}
+            className="sheet-backdrop fixed inset-0 z-[55] bg-black/60 md:hidden"
+          />
+          <nav
+            role="dialog"
+            aria-modal="true"
+            aria-label="Menu"
+            className="sheet-in fixed inset-x-0 bottom-0 z-[60] max-h-[85dvh] overflow-y-auto rounded-t-3xl border-t border-white/10 bg-ink-900/95 px-4 pb-8 pt-3 md:hidden"
+          >
+            {NAV.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={() => setOpen(false)}
+                className="block rounded-xl px-4 py-3 text-sm font-medium text-zinc-200 hover:bg-white/[0.06] hover:text-gold-200"
               >
-                Sign out
-              </button>
-            ) : (
-              <>
-                <Link
-                  href="/signup"
-                  onClick={() => setOpen(false)}
-                  className="block w-full rounded-xl bg-gradient-to-br from-gold-300 to-gold-600 px-4 py-3 text-center text-sm font-bold text-ink-950 transition-all hover:brightness-110"
+                {item.label}
+              </Link>
+            ))}
+            <div className="mt-3 space-y-2 border-t border-white/[0.06] px-4 pt-3">
+              {loggedIn ? (
+                <button
+                  onClick={() => {
+                    setOpen(false);
+                    void handleSignOut();
+                  }}
+                  className="w-full rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm font-semibold text-zinc-200 transition-colors hover:border-red-400/40 hover:text-red-300"
                 >
-                  Create account
-                </Link>
-                <Link
-                  href="/login"
-                  onClick={() => setOpen(false)}
-                  className="block w-full rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-center text-sm font-semibold text-zinc-200 transition-colors hover:border-gold-400/40 hover:text-gold-200"
-                >
-                  Sign in
-                </Link>
-              </>
-            )}
-          </div>
-          <div className="mt-2 flex items-center justify-between border-t border-white/[0.06] px-4 pb-1 pt-4">
-            <span className="text-xs font-semibold text-zinc-400">Appearance</span>
-            <ThemeToggle compact />
-          </div>
-        </nav>
+                  Sign out
+                </button>
+              ) : (
+                <>
+                  <Link
+                    href="/signup"
+                    onClick={() => setOpen(false)}
+                    className="block w-full rounded-xl bg-gradient-to-br from-gold-300 to-gold-600 px-4 py-3 text-center text-sm font-bold text-ink-950 transition-all hover:brightness-110"
+                  >
+                    Create account
+                  </Link>
+                  <Link
+                    href="/login"
+                    onClick={() => setOpen(false)}
+                    className="block w-full rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-center text-sm font-semibold text-zinc-200 transition-colors hover:border-gold-400/40 hover:text-gold-200"
+                  >
+                    Sign in
+                  </Link>
+                </>
+              )}
+            </div>
+
+            {/* Settings — theme lives here on mobile */}
+            <div className="mt-2 border-t border-white/[0.06] px-4 pb-1 pt-4">
+              <div className="text-xs font-bold uppercase tracking-[0.14em] text-zinc-400">
+                Settings
+              </div>
+              <div className="mt-3 flex items-center justify-between gap-4">
+                <div>
+                  <div className="text-sm font-semibold text-zinc-200">Appearance</div>
+                  <div className="text-[11px] text-zinc-500">Light or dark theme</div>
+                </div>
+                <div className="w-40 shrink-0">
+                  <ThemeSwitch />
+                </div>
+              </div>
+            </div>
+          </nav>
         </>
       )}
-    </header>
     </>
   );
 }

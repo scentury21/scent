@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { formatNGN, formatDate } from "@/lib/currency";
+import { showToast } from "@/components/toast";
 
 const STATUSES = ["pending", "processing", "shipped", "delivered", "cancelled"];
 
@@ -73,12 +74,21 @@ export default function AdminOrdersPage() {
     const data = (await res.json().catch(() => ({}))) as {
       ok?: boolean;
       error?: string;
+      emailSent?: boolean;
+      emailNote?: string;
     };
     if (!res.ok || !data.ok) {
       setError(data.error ?? "Could not update status — try again.");
       return;
     }
     setOrders((prev) => prev.map((o) => (o.id === id ? { ...o, status } : o)));
+    if (data.emailSent) {
+      showToast("Status updated — customer emailed ✉️", "success");
+    } else if (data.emailNote) {
+      showToast("Status updated — email skipped", "info");
+    } else {
+      showToast("Status updated", "success");
+    }
   }
 
   const itemsFor = (id: string) => items.filter((i) => i.order_id === id);
