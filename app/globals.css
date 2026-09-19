@@ -240,6 +240,20 @@ body {
   animation: shimmer 3.5s linear infinite;
 }
 
+/* Slow breathing glow for hero ornaments (shop mosaic cards) */
+@keyframes glow {
+  0%, 100% { opacity: 0.55; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.12); }
+}
+.animate-glow {
+  animation: glow 7s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-glow {
+    animation: none;
+  }
+}
+
 
 
 /* Premium shop card — warm white in light mode, raised brown in dark mode,
